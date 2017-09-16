@@ -12,5 +12,8 @@
   "dependencies": {
     "graphql-client": "^2.0.0",
     "mongodb": "^2.2.31"
+  },
+  "devDependencies": {
+    "telegraf": "^3.10.1"
   }
 }

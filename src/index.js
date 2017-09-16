@@ -1,5 +1,6 @@
 const config = require('./config.json');
 const {MongoDB} = require('./mongo-db');
+const {Bot} = require('./bot');
 
 const {getReleases} = require('./github-client');
 
@@ -11,7 +12,7 @@ async function main() {
 
   await mongo.init();
 
-  global.mongo = mongo;
+  const bot = new Bot();
 }
 
 

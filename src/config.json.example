@@ -1,0 +1,17 @@
+{
+  "github": {
+    "token": "",
+    "url": "https://api.github.com/graphql"
+  },
+  "mongodb": {
+    "name": "test",
+    "url": "mongodb://localhost:27017/"
+  },
+  "telegram": {
+    "token": ""
+  },
+  "server": {
+    "url": "",
+    "port": ""
+  }
+}
