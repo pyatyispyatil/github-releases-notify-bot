@@ -12,7 +12,7 @@ async function main() {
 
   await mongo.init();
 
-  const bot = new Bot();
+  const bot = new Bot(mongo);
 }
 
 

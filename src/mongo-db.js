@@ -15,17 +15,21 @@ class MongoDB {
       const db = await new Promise((resolve) => MongoClient.connect(this.url + this.name, (err, db) => {
         assert.equal(null, err);
 
-        console.log("Connected successfully to server");
+        console.log("Connected successfully to DB");
 
         resolve(db);
       }));
 
       await this.createCollections(db);
 
+      console.log('Collections created');
+
       this.users = db.collection('users');
       this.repos = db.collection('repos');
 
       await this.createIndexes();
+
+      console.log('Indexes created');
     } catch (error) {
       console.log('Something wrong with MongoDB =(');
     }
@@ -51,13 +55,18 @@ class MongoDB {
     }
   }
 
-  async createUser(userId) {
-    const user = await this.getUser(userId);
+  async createUser(user) {
+    const createdUser = await this.getUser(user.id);
 
-    if (!user) {
+    if (!createdUser) {
       await this.users.insertOne({
-        userId,
-        watchedRepos: []
+        userId: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        is_bot: user.is_bot,
+        username: user.username,
+        lang: user.language_code,
+        subscribes: []
       });
     } else {
       console.log('User is already created');
@@ -134,7 +143,7 @@ class MongoDB {
       }, {upsert: true}),
       this.users.updateOne({userId}, {
         $addToSet: {
-          watchedRepos: {owner, name}
+          subscribes: {owner, name}
         }
       }, {upsert: true})
     ]);
@@ -149,7 +158,7 @@ class MongoDB {
       }, {upsert: true}),
       this.users.updateOne({userId}, {
         $pull: {
-          watchedRepos: {owner, name}
+          subscribes: {owner, name}
         }
       }, {upsert: true})
     ]);
