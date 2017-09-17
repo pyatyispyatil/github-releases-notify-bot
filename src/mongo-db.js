@@ -116,22 +116,28 @@ class MongoDB {
     }, {upsert: true});
   }
 
-  async updateAllRepos(data) {
-    const repos = await this.repos.find({}).toArray();
+  async getAllRepos() {
+    return await this.repos.find({}).toArray();
+  }
 
-    const updates = repos.map((repo) => ({
+  async updateRepos(data) {
+    const repos = await this.getAllRepos();
+
+    const findSimilar = (arr, repo) => arr.find(({owner, name}) => owner === repo.owner && name === repo.name);
+
+    const updates = data.map((update) => ({
       filter: {
-        owner: repo.owner,
-        name: repo.name
+        owner: update.owner,
+        name: update.name
       },
       update: {
         $push: {
-          releases: {$each: this.compareReleases(repo.releases, data[repo.owner][repo.name].releases)}
+          releases: {$each: this.compareReleases(findSimilar(repos, update), update.releases)}
         }
       }
     }));
 
-    return await Promise.all([...updates.map(({filter, update}) => this.repos.updateOne(filter, update))]);
+    return await Promise.all(updates.map(({filter, update}) => this.repos.updateOne(filter, update)));
   }
 
   async bindUserToRepo(userId, owner, name) {

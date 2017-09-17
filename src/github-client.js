@@ -73,19 +73,17 @@ const getMany = (query) => (repos, count) => client.query(`
     }
 `);
 
-const parseMany = (parser) => (fullRes) => Object.entries(fullRes.data).reduce((acc, [key, res]) => {
+const parseMany = (parser) => (fullRes) => Object.entries(fullRes.data).map((acc, [key, res]) => {
   const delimiter = key.indexOf('_');
   const owner = key.substr(0, delimiter);
   const name = key.substr(delimiter + 1);
 
-  if (!acc[owner]) {
-    acc[owner] = {};
-  }
-
-  acc[owner][name] = parser(res);
-
-  return acc;
-}, {});
+  return {
+    owner,
+    name,
+    releases: parser(res)
+  };
+});
 
 const getManyReleases = (repos, count) => getMany(releases)(repos, count)
   .then(parseMany(prepareReleases));
@@ -96,25 +94,16 @@ const getManyTags = (repos, count) => getMany(tags)(repos, count)
 const getManyVersions = async (repos, count) => {
   const releases = await getManyReleases(repos, count);
 
-  const reposWithoutReleases = Object.keys(releases)
-    .map((owner) => Object.keys(releases[owner])
-      .reduce((acc, name) => acc.concat({
-        owner,
-        name,
-        releases: releases[owner][name]
-      }), []))
-    .reduce((acc, arr) => acc.concat(arr))
-    .filter((repo) => !repo.releases.length);
+  const reposWithoutReleases = releases.filter(({releases}) => !releases.length);
+  const updates = releases.filter(({releases}) => releases.length);
 
   if (reposWithoutReleases.length) {
     const tags = await getManyTags(reposWithoutReleases, count);
 
-    Object.keys(tags)
-      .forEach((owner) => Object.keys(tags[owner])
-        .forEach((name) => releases[owner][name] = tags[owner][name]));
+    updates.push(tags);
   }
 
-  return releases;
+  return updates;
 };
 
 module.exports = {

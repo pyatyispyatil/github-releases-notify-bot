@@ -2,17 +2,29 @@ const config = require('./config.json');
 const {MongoDB} = require('./mongo-db');
 const {Bot} = require('./bot');
 const tasks = require('./tasks');
+const client = require('./github-client');
 
 
-async function main() {
-  const mongo = new MongoDB(config.mongodb.url, config.mongodb.name);
+const main = async () => {
+  const db = new MongoDB(config.mongodb.url, config.mongodb.name);
 
-  await mongo.init();
+  await db.init();
 
-  tasks.add('releases', )
+  const bot = new Bot(db);
 
-  const bot = new Bot(mongo);
-}
+  const updateReleasesTask = async () => {
+    const repos = await db.getAllRepos();
+
+    const updates = await client.getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
+
+    await db.updateRepos(updates);
+
+    return repos;
+  };
+
+  tasks.add('releases', updateReleasesTask, 60);
+  tasks.subscribe('releases', bot.notifyUsers.bind(bot));
+};
 
 
 main();

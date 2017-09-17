@@ -54,6 +54,10 @@ class Bot {
     this.bot.startPolling();
   }
 
+  notifyUsers(repos) {
+    //ToDo: user notify
+  };
+
   parseRepo(str) {
     let owner, name;
 
