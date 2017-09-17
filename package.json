@@ -1,19 +1,17 @@
 {
   "name": "github-releases-bot",
   "version": "0.1.0",
-  "description": "",
+  "description": "GitHub releases bot for Telegram",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Nikolay Ryabov",
+  "license": "MIT",
   "dependencies": {
     "graphql-client": "^2.0.0",
-    "mongodb": "^2.2.31"
-  },
-  "devDependencies": {
+    "mongodb": "^2.2.31",
     "telegraf": "^3.10.1"
   }
 }
