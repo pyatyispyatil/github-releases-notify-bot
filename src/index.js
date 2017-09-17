@@ -2,7 +2,7 @@ const config = require('./config.json');
 const {MongoDB} = require('./mongo-db');
 const {Bot} = require('./bot');
 const tasks = require('./tasks');
-const client = require('./github-client');
+const {getManyVersions} = require('./github-client');
 
 
 const main = async () => {
@@ -15,14 +15,14 @@ const main = async () => {
   const updateReleasesTask = async () => {
     const repos = await db.getAllRepos();
 
-    const updates = await client.getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
+    const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
 
     await db.updateRepos(updates);
 
     return repos;
   };
 
-  tasks.add('releases', updateReleasesTask, 60);
+  tasks.add('releases', updateReleasesTask, 1);
   tasks.subscribe('releases', bot.notifyUsers.bind(bot));
 };
 

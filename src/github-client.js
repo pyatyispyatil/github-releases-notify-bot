@@ -15,7 +15,7 @@ const prepareRelease = ({url, isPrerelease, description, tag}) => ({
   name: tag.name
 });
 
-const prepareReleases = (res) => res.data.repository.releases.nodes.map(prepareRelease);
+const prepareReleases = (res) => ((res.data && res.data.repository) || res).releases.nodes.map(prepareRelease);
 
 const prepareTag = (tag) => ({
   url: '',
@@ -24,7 +24,7 @@ const prepareTag = (tag) => ({
   name: tag.name
 });
 
-const prepareTags = (res) => res.data.repository.refs.nodes.map(prepareTag);
+const prepareTags = (res) => ((res.data && res.data.repository) || res).refs.nodes.map(prepareTag);
 
 const releases = (owner, name, count) => `
 repository(owner:"${owner}", name:"${name}") {
@@ -73,7 +73,7 @@ const getMany = (query) => (repos, count) => client.query(`
     }
 `);
 
-const parseMany = (parser) => (fullRes) => Object.entries(fullRes.data).map((acc, [key, res]) => {
+const parseMany = (parser) => (res) => Object.keys(res.data).map((key) => {
   const delimiter = key.indexOf('_');
   const owner = key.substr(0, delimiter);
   const name = key.substr(delimiter + 1);
@@ -81,7 +81,7 @@ const parseMany = (parser) => (fullRes) => Object.entries(fullRes.data).map((acc
   return {
     owner,
     name,
-    releases: parser(res)
+    releases: parser(res.data[key])
   };
 });
 
@@ -100,7 +100,7 @@ const getManyVersions = async (repos, count) => {
   if (reposWithoutReleases.length) {
     const tags = await getManyTags(reposWithoutReleases, count);
 
-    updates.push(tags);
+    updates.push(...tags);
   }
 
   return updates;

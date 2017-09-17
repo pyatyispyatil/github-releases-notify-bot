@@ -132,7 +132,7 @@ class MongoDB {
       },
       update: {
         $push: {
-          releases: {$each: this.compareReleases(findSimilar(repos, update), update.releases)}
+          releases: {$each: this.compareReleases(findSimilar(repos, update).releases, update.releases)}
         }
       }
     }));
