@@ -66,7 +66,7 @@ class MongoDB {
         is_bot: user.is_bot,
         username: user.username,
         lang: user.language_code,
-        subscribes: []
+        subscriptions: []
       });
     } else {
       console.log('User is already created');
@@ -77,14 +77,16 @@ class MongoDB {
     const repo = await this.repos.findOne({owner, name});
 
     if (repo && repo.owner && repo.name) {
-      return null;
+      return 'exist';
     } else {
-      return await this.repos.insertOne({
+      await this.repos.insertOne({
         owner,
         name,
         watchedUsers: [],
         releases: []
       });
+
+      return 'new';
     }
   }
 
@@ -95,8 +97,8 @@ class MongoDB {
     });
   }
 
-  async getReleasesForUser(userId) {
-    return await this.repos.find({watchedUsers: userId}).map(({releases}) => releases).toArray();
+  async getUserSubscriptions(userId) {
+    return await this.repos.find({watchedUsers: userId}).toArray();
   }
 
   async getUser(userId) {
@@ -109,7 +111,7 @@ class MongoDB {
 
     return await this.repos.updateOne({owner, name}, {
       $push: {
-        releases: filteredReleases
+        releases: {$each: filteredReleases}
       }
     }, {upsert: true});
   }
@@ -124,7 +126,7 @@ class MongoDB {
       },
       update: {
         $push: {
-          releases: this.compareReleases(repo.releases, data[repo.owner][repo.name].releases)
+          releases: {$each: this.compareReleases(repo.releases, data[repo.owner][repo.name].releases)}
         }
       }
     }));
@@ -133,9 +135,9 @@ class MongoDB {
   }
 
   async bindUserToRepo(userId, owner, name) {
-    await this.addRepo(owner, name);
+    const status = await this.addRepo(owner, name);
 
-    return await Promise.all([
+    await Promise.all([
       this.repos.updateOne({owner, name}, {
         $addToSet: {
           watchedUsers: userId
@@ -143,10 +145,12 @@ class MongoDB {
       }, {upsert: true}),
       this.users.updateOne({userId}, {
         $addToSet: {
-          subscribes: {owner, name}
+          subscriptions: {owner, name}
         }
       }, {upsert: true})
     ]);
+
+    return status;
   }
 
   async unbindUserFromRepo(userId, owner, name) {
@@ -158,7 +162,7 @@ class MongoDB {
       }, {upsert: true}),
       this.users.updateOne({userId}, {
         $pull: {
-          subscribes: {owner, name}
+          subscriptions: {owner, name}
         }
       }, {upsert: true})
     ]);
