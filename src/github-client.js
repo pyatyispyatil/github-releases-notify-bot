@@ -107,10 +107,17 @@ const getManyVersions = async (repos, count) => {
     .filter((repo) => !repo.releases.length);
 
   if (reposWithoutReleases.length) {
-    const tags = await getManyTags(reposWithoutReleases, count)
+    const tags = await getManyTags(reposWithoutReleases, count);
+
+    Object.keys(tags)
+      .forEach((owner) => Object.keys(tags[owner])
+        .forEach((name) => releases[owner][name] = tags[owner][name]));
   }
+
+  return releases;
 };
 
 module.exports = {
   getVersions,
+  getManyVersions
 };
