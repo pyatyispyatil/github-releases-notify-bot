@@ -9,5 +9,8 @@
   },
   "telegram": {
     "token": ""
+  },
+  "app": {
+    "updateInterval": 300
   }
 }
