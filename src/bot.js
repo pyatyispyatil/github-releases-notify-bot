@@ -114,6 +114,7 @@ class Bot {
 
   async notifyUsers(repos) {
     await this.sendReleases(
+      null,
       repos,
       (markdown, {watchedUsers}) =>
         watchedUsers.reduce((promise, userId) =>
@@ -237,17 +238,23 @@ class Bot {
   }
 
   async sendReleases(ctx, repos, send) {
-    ctx.session.releasesDescriptions = [];
+    if (ctx) {
+      ctx.session.releasesDescriptions = [];
+    }
 
     return repos.reduce((promise, repo) => {
       const sendRelease = (latestPromise, release) => {
         const {full, short} = getReleaseMessages(repo, release);
 
-        ctx.session.releasesDescriptions.push(full);
+        if (ctx) {
+          ctx.session.releasesDescriptions.push(full);
 
-        const key = keyboards.expandButton(ctx.session.releasesDescriptions.length - 1);
+          const key = keyboards.expandButton(ctx.session.releasesDescriptions.length - 1);
 
-        return latestPromise.then(() => send(short, repo, key));
+          return latestPromise.then(() => send(short, repo, key));
+        } else {
+          return latestPromise.then(() => send(full, repo));
+        }
       };
 
       const last = repo.releases[repo.releases.length - 1];
