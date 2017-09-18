@@ -1,5 +1,5 @@
 {
-  "name": "github-releases-bot",
+  "name": "github-releases-notify-bot",
   "version": "0.1.0",
   "description": "GitHub releases bot for Telegram",
   "main": "src/index.js",
