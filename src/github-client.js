@@ -73,17 +73,25 @@ const getMany = (query) => (repos, count) => client.query(`
     }
 `);
 
-const parseMany = (parser) => ({data = {}} = {}) => Object.keys(data).map((key) => {
-  const delimiter = key.indexOf('_');
-  const owner = key.substr(0, delimiter);
-  const name = key.substr(delimiter + 1);
+const parseMany = (parser) => ({data} = {}) => {
+  console.log('parseMany data:', data);
 
-  return {
-    owner,
-    name,
-    releases: parser(data[key])
-  };
-});
+  if (data) {
+    return Object.keys(data).map((key) => {
+      const delimiter = key.indexOf('_');
+      const owner = key.substr(0, delimiter);
+      const name = key.substr(delimiter + 1);
+
+      return {
+        owner,
+        name,
+        releases: parser(data[key])
+      };
+    })
+  } else {
+    return [];
+  }
+};
 
 const getManyReleases = (repos, count) => getMany(releases)(repos, count)
   .then(parseMany(prepareReleases));
