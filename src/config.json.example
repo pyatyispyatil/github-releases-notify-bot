@@ -9,9 +9,5 @@
   },
   "telegram": {
     "token": ""
-  },
-  "server": {
-    "url": "",
-    "port": ""
   }
 }

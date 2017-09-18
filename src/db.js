@@ -105,6 +105,10 @@ class DB {
     return await this.users.findOne({userId});
   }
 
+  async getRepo(owner, name) {
+    return await this.repos.findOne({owner, name});
+  }
+
   async getAllRepos() {
     return await this.repos.find({}).toArray();
   }

@@ -1,12 +1,10 @@
 const Telegraf = require('telegraf');
 const config = require('./config.json');
-const {Router, Extra, memorySession, Markup} = require('telegraf');
+const {Extra, memorySession} = require('telegraf');
 
 const {getVersions} = require('./github-client');
 
 const API_TOKEN = config.telegram.token || '';
-const PORT = config.server.port || 8443;
-const URL = config.server.url || '';
 
 const about = `
 Bot for notification of new releases in repositories about which you tell him.
@@ -20,13 +18,22 @@ Your wishes for features, as well as comments about bugs can be written [here](h
 
 const getUser = (ctx) => ctx.message ? ctx.message.from : ctx.update.callback_query.from;
 
-const getReleaseMessage = (repo, release) =>
+const getShortReleaseMessage = (repo, release) =>
+  `<b>${repo.owner}/${repo.name}</b> 
+${release.isPrerelease ? '<b>Pre-release</b> ' : ''}${release.name}`;
+
+const getFullReleaseMessage = (repo, release) =>
   `*${repo.owner}/${repo.name}*
-[${release.name}](${release.url})
+${release.isPrerelease ? '*Pre-release* ' : ''}[${release.name}](${release.url})
 ${release.description
     .replace(/\*/mgi, '')
     .replace(/_/mgi, '\\_')
     .trim()}`;
+
+const getReleaseMessages = (repo, release) => ({
+  short: getShortReleaseMessage(repo, release),
+  full: getFullReleaseMessage(repo, release)
+})
 
 const parseRepo = (str) => {
   let owner, name;
@@ -37,7 +44,7 @@ const parseRepo = (str) => {
     if (isUrl) {
       [, owner, name] = str.match(/https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i);
     } else {
-      [owner, name] = str.split('/');
+      [owner, name] = str.replace(' ', '').split('/');
     }
   }
 
@@ -58,7 +65,13 @@ const keyboards = {
   ),
   backToActions: () => Extra.HTML().markup(
     (m) => m.inlineKeyboard([m.callbackButton('Back', `actionsList`)])
-  )
+  ),
+  addOneMoreRepo: () => Extra.HTML().markup(
+    (m) => m.inlineKeyboard([m.callbackButton('Add one more?', `addRepo`)])
+  ),
+  expandButton: (data) => Extra.HTML().markup(
+    (m) => m.inlineKeyboard([m.callbackButton('Expand', `getReleases:expand:${data}`)])
+  ),
 };
 
 
@@ -75,9 +88,6 @@ class Bot {
       this.bot.options.username = botInfo.username;
     });
 
-    // bot.telegram.setWebhook(URL);
-    // bot.startWebhook('/', null, PORT);
-
     this.listen();
 
     bot.startPolling();
@@ -90,7 +100,9 @@ class Bot {
 
     this.bot.action('actionsList', this.actionsList.bind(this));
     this.bot.action('addRepo', this.addRepo.bind(this));
+
     this.bot.action('getReleases', this.getReleases.bind(this));
+    this.bot.action(/getReleases:expand:(.+)/, this.getReleasesExpanded.bind(this));
 
     this.bot.action('editRepos', this.editRepos.bind(this));
     this.bot.action(/editRepos:delete:(.+)/, this.editReposDelete.bind(this));
@@ -136,21 +148,26 @@ class Bot {
       switch (ctx.session.action) {
         case 'addRepo':
           const repo = parseRepo(str);
+
           if (repo) {
-            try {
-              const status = await this.db.bindUserToRepo(user.id, repo.owner, repo.name);
+            const hasRepoInDB = await this.db.getRepo(repo.owner, repo.name);
 
-              if (status === 'new') {
-                const releases = await getVersions(repo.owner, repo.name, 10);
+            if (!hasRepoInDB) {
+              try {
+                const releases = await getVersions(repo.owner, repo.name, 20);
 
+                await this.db.addRepo(repo.owner, repo.name);
                 await this.db.updateRepo(repo.owner, repo.name, releases);
+              } catch (error) {
+                return ctx.reply('Cannot subscribe to this repo. Please enter another:');
               }
-
-              ctx.session.action = null;
-              return ctx.reply('Done!');
-            } catch (err) {
-              return ctx.reply('Something was wrong. Please, try again.');
             }
+
+            await this.db.bindUserToRepo(user.id, repo.owner, repo.name);
+
+            ctx.session.action = null;
+
+            return ctx.reply('Done!', keyboards.addOneMoreRepo());
           } else {
             return ctx.reply('Cannot subscribe to this repo. Please enter another:');
           }
@@ -204,14 +221,50 @@ class Bot {
 
     ctx.answerCallbackQuery('');
 
-    return this.sendReleases(repos, (markdown) => ctx.replyWithMarkdown(markdown));
+    return this.sendReleases(ctx, repos, (html, repo, key) => ctx.reply(html, key));
   }
 
-  async sendReleases(repos, send) {
-    return repos.reduce((promise, repo) => {
-      const lastRelease = repo.releases[repo.releases.length - 1];
+  async getReleasesExpanded(ctx) {
+    const data = ctx.match[1];
 
-      return promise.then(() => send(getReleaseMessage(repo, lastRelease), repo));
+    try {
+      const index = parseInt(data);
+
+      return ctx.editMessageText(ctx.session.releasesDescriptions[index], Extra.markdown());
+    } catch (error) {
+      return ctx.editMessageText('Data is broken');
+    }
+  }
+
+  async sendReleases(ctx, repos, send) {
+    ctx.session.releasesDescriptions = [];
+
+    return repos.reduce((promise, repo) => {
+      const sendRelease = (latestPromise, release) => {
+        const {full, short} = getReleaseMessages(repo, release);
+
+        ctx.session.releasesDescriptions.push(full);
+
+        const key = keyboards.expandButton(ctx.session.releasesDescriptions.length - 1);
+
+        return latestPromise.then(() => send(short, repo, key));
+      };
+
+      const last = repo.releases[repo.releases.length - 1];
+
+      if (last && last.isPrerelease) {
+        const lastRelease = repo.releases.slice().reverse().find((release) => !release.isPrerelease);
+
+        if (lastRelease) {
+          promise = sendRelease(promise, lastRelease);
+        }
+      }
+
+      if (last) {
+        promise = sendRelease(promise, last);
+      }
+
+      return promise;
     }, Promise.resolve());
   }
 

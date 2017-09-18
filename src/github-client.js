@@ -15,7 +15,7 @@ const prepareRelease = ({url, isPrerelease, description, tag}) => ({
   name: tag.name
 });
 
-const prepareReleases = (res) => ((res.data && res.data.repository) || res).releases.nodes.map(prepareRelease);
+const prepareReleases = (res) => res ? ((res.data && res.data.repository) || res).releases.nodes.map(prepareRelease) : [];
 
 const prepareTag = (tag) => ({
   url: '',
@@ -24,7 +24,7 @@ const prepareTag = (tag) => ({
   name: tag.name
 });
 
-const prepareTags = (res) => ((res.data && res.data.repository) || res).refs.nodes.map(prepareTag);
+const prepareTags = (res) => res ? ((res.data && res.data.repository) || res).refs.nodes.map(prepareTag) : [];
 
 const releases = (owner, name, count) => `
 repository(owner:"${owner}", name:"${name}") {
