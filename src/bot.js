@@ -78,7 +78,7 @@ const keyboards = {
     Markup.callbackButton('Back', `actionsList`)
   ]).extra(),
   addOneMoreRepo: () => Markup.inlineKeyboard([
-    Markup.callbackButton('Add one more?', `addRepo`),
+    Markup.callbackButton('Yes', `addRepo`),
     Markup.callbackButton('Nope', `actionsList`)
   ]).extra(),
   expandButton: (data) => Markup.inlineKeyboard([
@@ -198,7 +198,7 @@ class Bot {
 
             ctx.session.action = null;
 
-            return ctx.reply('Done!', keyboards.addOneMoreRepo());
+            return ctx.reply('Done! Add one more?', keyboards.addOneMoreRepo());
           } else {
             return ctx.reply('Cannot subscribe to this repo. Please enter another:');
           }
