@@ -15,7 +15,6 @@ Bot for notification of new releases in repositories about which you tell him.
 Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
 `;
 
-
 const getUser = (ctx) => ctx.message ? ctx.message.from : ctx.update.callback_query.from;
 
 const getShortReleaseMessage = (repo, release) =>
@@ -33,7 +32,7 @@ ${release.description
 const getReleaseMessages = (repo, release) => ({
   short: getShortReleaseMessage(repo, release),
   full: getFullReleaseMessage(repo, release)
-})
+});
 
 const parseRepo = (str) => {
   let owner, name;
@@ -79,7 +78,8 @@ const keyboards = {
     Markup.callbackButton('Back', `actionsList`)
   ]).extra(),
   addOneMoreRepo: () => Markup.inlineKeyboard([
-    Markup.callbackButton('Add one more?', `addRepo`)
+    Markup.callbackButton('Add one more?', `addRepo`),
+    Markup.callbackButton('Nope', `actionsList`)
   ]).extra(),
   expandButton: (data) => Markup.inlineKeyboard([
     Markup.callbackButton('Expand', `getReleases:expand:${data}`)
