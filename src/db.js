@@ -110,7 +110,7 @@ class DB {
   }
 
   async getAllRepos() {
-    return await this.repos.find({}).toArray();
+    return await this.repos.find().toArray();
   }
 
   async updateRepo(owner, name, newReleases) {

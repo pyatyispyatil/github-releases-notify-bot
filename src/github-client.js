@@ -65,38 +65,37 @@ const getTags = (owner, name, count = 1) => client.query(`
 const getVersions = (owner, name, count) => getReleases(owner, name, count)
   .then((releases) => releases.length ? releases : getTags(owner, name, count));
 
-const getMany = (query) => (repos, count) => client.query(`
-    query {
-      ${repos.map((repo) => `
-        ${repo.owner + '_' + repo.name}: ${query(repo.owner, repo.name, count)}
-      `).join('\n')}
-    }
-`);
-
-const parseMany = (parser) => ({data} = {}) => {
-  console.log('parseMany data:', data);
-
-  if (data) {
-    return Object.keys(data).map((key) => {
-      const delimiter = key.indexOf('_');
-      const owner = key.substr(0, delimiter);
-      const name = key.substr(delimiter + 1);
-
-      return {
-        owner,
-        name,
-        releases: parser(data[key])
-      };
-    })
+const getMany = (query, repos, count) => {
+  if (repos.length) {
+    return client.query(`
+      query {
+        ${repos.map((repo, index) => `repo_${index}: ${query(repo.owner, repo.name, count)}`).join('\n')}
+      }`)
+        .then(({data}) =>
+          data ? repos.map((repo, index) => Object.assign(
+            {rawReleases: data['repo_' + index]},
+            repo
+          )) : []
+        );
   } else {
-    return [];
+    return Promise.resolve([]);
   }
 };
 
-const getManyReleases = (repos, count) => getMany(releases)(repos, count)
+const parseMany = (parser) => (data = []) => {
+  return data.map(({owner, name, rawReleases}) => {
+    return {
+      owner,
+      name,
+      releases: parser(rawReleases)
+    };
+  })
+};
+
+const getManyReleases = (repos, count) => getMany(releases, repos, count)
   .then(parseMany(prepareReleases));
 
-const getManyTags = (repos, count) => getMany(tags)(repos, count)
+const getManyTags = (repos, count) => getMany(tags, repos, count)
   .then(parseMany(prepareTags));
 
 const getManyVersions = async (repos, count) => {
