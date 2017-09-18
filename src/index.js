@@ -20,7 +20,7 @@ const main = async () => {
     return await db.updateRepos(updates);
   };
 
-  tasks.add('releases', updateReleasesTask, 1);
+  tasks.add('releases', updateReleasesTask, 60*5);
   tasks.subscribe('releases', bot.notifyUsers.bind(bot));
 };
 

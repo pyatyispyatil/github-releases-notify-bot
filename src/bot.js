@@ -18,6 +18,40 @@ ${release.description
     .replace(/_/mgi, '\\_')
     .trim()}`;
 
+const parseRepo = (str) => {
+  let owner, name;
+
+  if (str) {
+    const isUrl = /https?:\/\//.test(str);
+
+    if (isUrl) {
+      [, owner, name] = str.match(/https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i);
+    } else {
+      [owner, name] = str.split('/');
+    }
+  }
+
+  if (owner && name) {
+    return {owner, name};
+  } else {
+    return null;
+  }
+};
+
+const keyboards = {
+  actionsList: () => Extra.HTML().markup(
+    (m) => m.inlineKeyboard([
+      m.callbackButton('Add repo', 'addRepo'),
+      m.callbackButton('Edit repos list', 'editRepos'),
+      m.callbackButton('Get latest releases', 'getReleases')
+    ])
+  ),
+  backToActions: () => Extra.HTML().markup(
+    (m) => m.inlineKeyboard([m.callbackButton('Back', `actionsList`)])
+  )
+};
+
+
 class Bot {
   constructor(db) {
     const bot = new Telegraf(API_TOKEN);
@@ -41,12 +75,13 @@ class Bot {
 
   listen() {
     this.bot.command('start', this.start.bind(this));
-    this.bot.command('actions', this.actions.bind(this));
+    this.bot.command('actions', this.getActionsList.bind(this));
 
-    this.bot.action('actions:button:addRepo', this.actionAddRepo.bind(this));
-    this.bot.action('actions:button:editRepos', this.actionEditRepos.bind(this));
-    this.bot.action('actions:button:getReleases', this.actionGetReleases.bind(this));
+    this.bot.action('actionsList', this.actionsList.bind(this));
+    this.bot.action('addRepo', this.addRepo.bind(this));
+    this.bot.action('getReleases', this.getReleases.bind(this));
 
+    this.bot.action('editRepos', this.editRepos.bind(this));
     this.bot.action(/editRepos:delete:(.+)/, this.editReposDelete.bind(this));
 
     this.bot.hears(/.+/, this.handleAnswer.bind(this));
@@ -64,32 +99,12 @@ class Bot {
     );
   };
 
-  parseRepo(str) {
-    let owner, name;
-
-    if (str) {
-      const isUrl = /https?:\/\//.test(str);
-
-      if (isUrl) {
-        [, owner, name] = str.match(/https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i);
-      } else {
-        [owner, name] = str.split('/');
-      }
-    }
-
-    if (owner && name) {
-      return {owner, name};
-    } else {
-      return null;
-    }
-  }
-
   async start(ctx) {
     const user = getUser(ctx);
 
     await this.db.createUser(user);
 
-    return this.actions(ctx);
+    return this.getActionsList(ctx);
   }
 
   async handleAnswer(ctx, next) {
@@ -99,7 +114,7 @@ class Bot {
     if (ctx.session.action) {
       switch (ctx.session.action) {
         case 'addRepo':
-          const repo = this.parseRepo(str);
+          const repo = parseRepo(str);
           if (repo) {
             try {
               const status = await this.db.bindUserToRepo(user.id, repo.owner, repo.name);
@@ -125,13 +140,13 @@ class Bot {
     }
   }
 
-  actionAddRepo(ctx) {
+  addRepo(ctx) {
     ctx.session.action = 'addRepo';
 
-    return ctx.editMessageText('Please, enter the owner and name of repo (owner/name) or full url');
+    return ctx.editMessageText('Please, enter the owner and name of repo (owner/name) or full url', keyboards.backToActions());
   }
 
-  async actionEditRepos(ctx) {
+  async editRepos(ctx) {
     const {subscriptions} = await this.db.getUser(getUser(ctx).id);
 
     if (subscriptions && subscriptions.length) {
@@ -143,11 +158,14 @@ class Bot {
             m.callbackButton('🗑️', `editRepos:delete:${repo.owner}/${repo.name}`)
           ];
 
-          return m.inlineKeyboard(subscriptions.map(row));
+          return m.inlineKeyboard([...subscriptions.map(row), [m.callbackButton('Back', `actionsList`)]]);
         })
       );
     } else {
-      ctx.editMessageText('You do not have a subscriptions');
+      ctx.editMessageText(
+        'You do not have a subscriptions',
+        keyboards.backToActions()
+      );
     }
   }
 
@@ -157,11 +175,13 @@ class Bot {
 
     await this.db.unbindUserFromRepo(user.id, owner, name);
 
-    return this.actionEditRepos(ctx);
+    return this.editRepos(ctx);
   }
 
-  async actionGetReleases(ctx) {
+  async getReleases(ctx) {
     const repos = await this.db.getUserSubscriptions(getUser(ctx).id);
+
+    ctx.answerCallbackQuery('');
 
     return this.sendReleases(repos, (markdown) => ctx.replyWithMarkdown(markdown));
   }
@@ -174,13 +194,14 @@ class Bot {
     }, Promise.resolve());
   }
 
-  actions(ctx) {
-    return ctx.reply('Select an action', Extra.HTML().markup((m) =>
-      m.inlineKeyboard([
-        m.callbackButton('Add repo', 'actions:button:addRepo'),
-        m.callbackButton('Edit repos list', 'actions:button:editRepos'),
-        m.callbackButton('Get latest releases', 'actions:button:getReleases')
-      ])));
+  getActionsList(ctx) {
+    ctx.session.action = null;
+
+    return ctx.reply('Select an action', keyboards.actionsList());
+  }
+
+  actionsList(ctx) {
+    return ctx.editMessageText('Select an action', keyboards.actionsList());
   }
 }
 
