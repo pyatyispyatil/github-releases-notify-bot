@@ -73,7 +73,7 @@ const getMany = (query) => (repos, count) => client.query(`
     }
 `);
 
-const parseMany = (parser) => (res) => Object.keys(res.data).map((key) => {
+const parseMany = (parser) => ({data = {}} = {}) => Object.keys(data).map((key) => {
   const delimiter = key.indexOf('_');
   const owner = key.substr(0, delimiter);
   const name = key.substr(delimiter + 1);
@@ -81,7 +81,7 @@ const parseMany = (parser) => (res) => Object.keys(res.data).map((key) => {
   return {
     owner,
     name,
-    releases: parser(res.data[key])
+    releases: parser(data[key])
   };
 });
 
