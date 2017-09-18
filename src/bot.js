@@ -7,10 +7,9 @@ const {getVersions} = require('./github-client');
 const API_TOKEN = config.telegram.token || '';
 
 const about = `
-Bot for notification of new releases in repositories about which you tell him.
+Bot for notification of new releases in repositories about which you tell him. Checking for new releases occurs every ${config.app.updateInterval/60} minutes.
 
-*Author* - Nikolay Ryabov (pyatyispyatil@gmail.com)
-*GitHub Repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
+*GitHub repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
 
 Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
 `;
@@ -71,8 +70,8 @@ const getLastReleasesInRepos = (repo) => {
 const keyboards = {
   actionsList: () => Markup.inlineKeyboard([
     Markup.callbackButton('Add repository', 'addRepo'),
-    Markup.callbackButton('Edit subscriptions', 'editRepos'),
-    Markup.callbackButton('Get latest releases', 'getReleases')
+    Markup.callbackButton('Subscriptions', 'editRepos'),
+    Markup.callbackButton('Get releases', 'getReleases')
   ]).extra(),
   backToActions: () => Markup.inlineKeyboard([
     Markup.callbackButton('Back', `actionsList`)
