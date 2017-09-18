@@ -8,6 +8,16 @@ const API_TOKEN = config.telegram.token || '';
 const PORT = config.server.port || 8443;
 const URL = config.server.url || '';
 
+const about = `
+Bot for notification of new releases in repositories about which you tell him.
+
+*Author* - Nikolay Ryabov (pyatyispyatil@gmail.com)
+*GitHub Repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
+
+Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
+`;
+
+
 const getUser = (ctx) => ctx.message ? ctx.message.from : ctx.update.callback_query.from;
 
 const getReleaseMessage = (repo, release) =>
@@ -75,7 +85,8 @@ class Bot {
 
   listen() {
     this.bot.command('start', this.start.bind(this));
-    this.bot.command('actions', this.getActionsList.bind(this));
+    this.bot.command('actions', this.actions.bind(this));
+    this.bot.command('about', this.about.bind(this));
 
     this.bot.action('actionsList', this.actionsList.bind(this));
     this.bot.action('addRepo', this.addRepo.bind(this));
@@ -104,7 +115,17 @@ class Bot {
 
     await this.db.createUser(user);
 
-    return this.getActionsList(ctx);
+    return this.actions(ctx);
+  }
+
+  actions(ctx) {
+    ctx.session.action = null;
+
+    return ctx.reply('Select an action', keyboards.actionsList());
+  }
+
+  about(ctx) {
+    return ctx.replyWithMarkdown(about);
   }
 
   async handleAnswer(ctx, next) {
@@ -192,12 +213,6 @@ class Bot {
 
       return promise.then(() => send(getReleaseMessage(repo, lastRelease), repo));
     }, Promise.resolve());
-  }
-
-  getActionsList(ctx) {
-    ctx.session.action = null;
-
-    return ctx.reply('Select an action', keyboards.actionsList());
   }
 
   actionsList(ctx) {
