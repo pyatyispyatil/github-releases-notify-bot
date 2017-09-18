@@ -54,8 +54,14 @@ class Bot {
     this.bot.startPolling();
   }
 
-  notifyUsers(repos) {
-    //ToDo: user notify
+  async notifyUsers(repos) {
+    await this.sendReleases(
+      repos,
+      (markdown, {watchedUsers}) =>
+        watchedUsers.reduce((promise, userId) =>
+            promise.then(() => this.bot.telegram.sendMessage(userId, markdown, Extra.markdown())),
+          Promise.resolve())
+    );
   };
 
   parseRepo(str) {
@@ -154,13 +160,17 @@ class Bot {
     return this.actionEditRepos(ctx);
   }
 
-  async actionGetReleases(ctx, next) {
+  async actionGetReleases(ctx) {
     const repos = await this.db.getUserSubscriptions(getUser(ctx).id);
 
+    return this.sendReleases(repos, (markdown) => ctx.replyWithMarkdown(markdown));
+  }
+
+  async sendReleases(repos, send) {
     return repos.reduce((promise, repo) => {
       const lastRelease = repo.releases[repo.releases.length - 1];
 
-      return promise.then(() => ctx.replyWithMarkdown(getReleaseMessage(repo, lastRelease)));
+      return promise.then(() => send(getReleaseMessage(repo, lastRelease), repo));
     }, Promise.resolve());
   }
 

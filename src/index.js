@@ -1,12 +1,12 @@
 const config = require('./config.json');
-const {MongoDB} = require('./mongo-db');
+const {DB} = require('./db');
 const {Bot} = require('./bot');
 const tasks = require('./tasks');
 const {getManyVersions} = require('./github-client');
 
 
 const main = async () => {
-  const db = new MongoDB(config.mongodb.url, config.mongodb.name);
+  const db = new DB(config.mongodb.url, config.mongodb.name);
 
   await db.init();
 
@@ -17,9 +17,7 @@ const main = async () => {
 
     const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
 
-    await db.updateRepos(updates);
-
-    return repos;
+    return await db.updateRepos(updates);
   };
 
   tasks.add('releases', updateReleasesTask, 1);

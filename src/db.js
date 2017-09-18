@@ -1,7 +1,7 @@
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
 
-class MongoDB {
+class DB {
   constructor(url, name) {
     this.name = name;
     this.url = url;
@@ -105,6 +105,10 @@ class MongoDB {
     return await this.users.findOne({userId});
   }
 
+  async getAllRepos() {
+    return await this.repos.find({}).toArray();
+  }
+
   async updateRepo(owner, name, newReleases) {
     const {releases} = await this.repos.findOne({owner, name});
     const filteredReleases = this.compareReleases(releases, newReleases);
@@ -116,28 +120,39 @@ class MongoDB {
     }, {upsert: true});
   }
 
-  async getAllRepos() {
-    return await this.repos.find({}).toArray();
-  }
-
   async updateRepos(data) {
     const repos = await this.getAllRepos();
 
     const findSimilar = (arr, repo) => arr.find(({owner, name}) => owner === repo.owner && name === repo.name);
 
-    const updates = data.map((update) => ({
+    const updates = data
+      .map((update) => {
+        const similarRepo = findSimilar(repos, update);
+
+        return {
+          owner: update.owner,
+          name: update.name,
+          releases: this.compareReleases(similarRepo.releases, update.releases),
+          watchedUsers: similarRepo.watchedUsers
+        }
+      })
+      .filter((update) => update.releases.length);
+
+    const preparedUpdates = updates.map((update) => ({
       filter: {
         owner: update.owner,
         name: update.name
       },
       update: {
         $push: {
-          releases: {$each: this.compareReleases(findSimilar(repos, update).releases, update.releases)}
+          releases: {$each: update.releases}
         }
       }
     }));
 
-    return await Promise.all(updates.map(({filter, update}) => this.repos.updateOne(filter, update)));
+    await Promise.all([...preparedUpdates.map(({filter, update}) => this.repos.updateOne(filter, update))]);
+
+    return updates;
   }
 
   async bindUserToRepo(userId, owner, name) {
@@ -182,5 +197,5 @@ class MongoDB {
 }
 
 module.exports = {
-  MongoDB
+  DB
 };
