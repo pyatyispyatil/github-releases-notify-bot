@@ -1,6 +1,6 @@
 const Telegraf = require('telegraf');
 const config = require('./config.json');
-const {Extra, memorySession} = require('telegraf');
+const {Extra, Markup, memorySession} = require('telegraf');
 
 const {getVersions} = require('./github-client');
 
@@ -55,23 +55,50 @@ const parseRepo = (str) => {
   }
 };
 
+const getLastReleasesInRepos = (repo) => {
+  const revertedReleases = repo.releases.slice().reverse();
+
+  const last = revertedReleases[0];
+  const lastRelease = revertedReleases.find((release) => !release.isPrerelease);
+  const releases = [last];
+
+  if (last.isPrerelease && lastRelease) {
+    releases.unshift(lastRelease);
+  }
+
+  return Object.assign({}, repo, {releases});
+};
+
 const keyboards = {
-  actionsList: () => Extra.HTML().markup(
-    (m) => m.inlineKeyboard([
-      m.callbackButton('Add repo', 'addRepo'),
-      m.callbackButton('Edit repos list', 'editRepos'),
-      m.callbackButton('Get latest releases', 'getReleases')
-    ])
-  ),
-  backToActions: () => Extra.HTML().markup(
-    (m) => m.inlineKeyboard([m.callbackButton('Back', `actionsList`)])
-  ),
-  addOneMoreRepo: () => Extra.HTML().markup(
-    (m) => m.inlineKeyboard([m.callbackButton('Add one more?', `addRepo`)])
-  ),
-  expandButton: (data) => Extra.HTML().markup(
-    (m) => m.inlineKeyboard([m.callbackButton('Expand', `getReleases:expand:${data}`)])
-  ),
+  actionsList: () => Markup.inlineKeyboard([
+    Markup.callbackButton('Add repository', 'addRepo'),
+    Markup.callbackButton('Edit subscriptions', 'editRepos'),
+    Markup.callbackButton('Get latest releases', 'getReleases')
+  ]).extra(),
+  backToActions: () => Markup.inlineKeyboard([
+    Markup.callbackButton('Back', `actionsList`)
+  ]).extra(),
+  addOneMoreRepo: () => Markup.inlineKeyboard([
+    Markup.callbackButton('Add one more?', `addRepo`)
+  ]).extra(),
+  expandButton: (data) => Markup.inlineKeyboard([
+    Markup.callbackButton('Expand', `getReleases:expand:${data}`)
+  ]).extra(),
+  allOrOneRepo: () => Markup.inlineKeyboard([
+    [
+      Markup.callbackButton('All subscriptions', `getReleases:all`),
+      Markup.callbackButton('One repository', `getReleases:one`)
+    ],
+    [
+      Markup.callbackButton('Back', `actionsList`)
+    ]
+  ]).extra(),
+  table: (backActionName, actionName, items) => Markup.inlineKeyboard([
+    ...items.map((item, index) => [Markup.callbackButton(item, `${actionName}:${index}`)]),
+    [
+      Markup.callbackButton('Back', backActionName)
+    ]
+  ]).extra()
 };
 
 
@@ -103,6 +130,9 @@ class Bot {
 
     this.bot.action('getReleases', this.getReleases.bind(this));
     this.bot.action(/getReleases:expand:(.+)/, this.getReleasesExpanded.bind(this));
+    this.bot.action('getReleases:all', this.getReleasesAll.bind(this));
+    this.bot.action('getReleases:one', this.getReleasesOne.bind(this));
+    this.bot.action(/getReleases:one:(.+)/, this.getReleasesOneSelected.bind(this));
 
     this.bot.action('editRepos', this.editRepos.bind(this));
     this.bot.action(/editRepos:delete:(.+)/, this.editReposDelete.bind(this));
@@ -116,7 +146,7 @@ class Bot {
     await this.sendReleases(
       null,
       repos,
-      (markdown, {watchedUsers}) =>
+      (markdown, key, {watchedUsers}) =>
         watchedUsers.reduce((promise, userId) =>
             promise.then(() => this.bot.telegram.sendMessage(userId, markdown, Extra.markdown())),
           Promise.resolve())
@@ -189,16 +219,14 @@ class Bot {
     const {subscriptions} = await this.db.getUser(getUser(ctx).id);
 
     if (subscriptions && subscriptions.length) {
-      return ctx.editMessageText(
-        'Your repos',
-        Extra.HTML().markup((m) => {
-          const row = (repo) => [
-            m.urlButton(`${repo.owner}/${repo.name}`, `https://github.com/${repo.owner}/${repo.name}`),
-            m.callbackButton('🗑️', `editRepos:delete:${repo.owner}/${repo.name}`)
-          ];
+      const row = (repo) => [
+        Markup.urlButton(`${repo.owner}/${repo.name}`, `https://github.com/${repo.owner}/${repo.name}`),
+        Markup.callbackButton('🗑️', `editRepos:delete:${repo.owner}/${repo.name}`)
+      ];
 
-          return m.inlineKeyboard([...subscriptions.map(row), [m.callbackButton('Back', `actionsList`)]]);
-        })
+      return ctx.editMessageText(
+        'Your subscriptions',
+        Markup.inlineKeyboard([...subscriptions.map(row), [Markup.callbackButton('Back', `actionsList`)]]).extra()
       );
     } else {
       ctx.editMessageText(
@@ -218,11 +246,56 @@ class Bot {
   }
 
   async getReleases(ctx) {
+    return ctx.editMessageText('Select variant', keyboards.allOrOneRepo());
+  }
+
+  async getReleasesAll(ctx) {
     const repos = await this.db.getUserSubscriptions(getUser(ctx).id);
 
     ctx.answerCallbackQuery('');
 
-    return this.sendReleases(ctx, repos, (html, repo, key) => ctx.reply(html, key));
+    return this.sendReleases(
+      ctx,
+      repos.map(getLastReleasesInRepos),
+      ctx.replyWithHTML
+    );
+  }
+
+  async getReleasesOne(ctx) {
+    const {subscriptions} = await this.db.getUser(getUser(ctx).id);
+
+    ctx.session.subscriptions = subscriptions;
+
+    return ctx.editMessageText(
+      'Select repository',
+      keyboards.table(
+        'getReleases',
+        'getReleases:one',
+        subscriptions.map(({owner, name}) => `${owner}/${name}`)
+      )
+    )
+  }
+
+  async getReleasesOneSelected(ctx) {
+    try {
+      const index = parseInt(ctx.match[1]);
+
+      if (ctx.session.subscriptions && ctx.session.subscriptions[index]) {
+        const {owner, name} = ctx.session.subscriptions[index];
+
+        const repo = await this.db.getRepo(owner, name);
+
+        ctx.answerCallbackQuery('');
+
+        return this.sendReleases(
+          ctx,
+          [Object.assign(repo, {releases: repo.releases.slice(-5)})],
+          ctx.replyWithHTML
+        );
+      }
+    } catch (error) {
+      return ctx.editMessageText('Broken data');
+    }
   }
 
   async getReleasesExpanded(ctx) {
@@ -243,7 +316,7 @@ class Bot {
     }
 
     return repos.reduce((promise, repo) => {
-      const sendRelease = (latestPromise, release) => {
+      const sendRelease = (lastPromise, release) => {
         const {full, short} = getReleaseMessages(repo, release);
 
         if (ctx) {
@@ -251,27 +324,15 @@ class Bot {
 
           const key = keyboards.expandButton(ctx.session.releasesDescriptions.length - 1);
 
-          return latestPromise.then(() => send(short, repo, key));
+          return lastPromise.then(() => send(short, key, repo));
         } else {
-          return latestPromise.then(() => send(full, repo));
+          return lastPromise.then(() => send(full, '', repo));
         }
       };
 
-      const last = repo.releases[repo.releases.length - 1];
-
-      if (last && last.isPrerelease) {
-        const lastRelease = repo.releases.slice().reverse().find((release) => !release.isPrerelease);
-
-        if (lastRelease) {
-          promise = sendRelease(promise, lastRelease);
-        }
-      }
-
-      if (last) {
-        promise = sendRelease(promise, last);
-      }
-
-      return promise;
+      return repo.releases.reduce((lastPromise, release) =>
+          lastPromise.then(() => sendRelease(lastPromise, release)),
+        promise);
     }, Promise.resolve());
   }
 
