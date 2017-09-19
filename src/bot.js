@@ -14,6 +14,17 @@ Bot to notify you about new releases in the repositories that you add to the sub
 Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
 `;
 
+const greeting = `
+Hello!
+
+That bot can notify you about new releases.
+To receive a notification, you must subscribe to repos that you would like to observe. 
+To do this, click the "Add repository" button.
+
+In addition, you can see the latest releases of your observed repositories. 
+To do this, click the "Get Releases" button.
+`;
+
 const getUser = (ctx) => ctx.message ? (
   ctx.message.chat || ctx.message.from
 ) : (
@@ -153,7 +164,9 @@ class Bot {
   };
 
   async start(ctx) {
-    return this.actions(ctx);
+    await ctx.reply(greeting);
+
+    return await this.actions(ctx);
   }
 
   async actions(ctx) {
@@ -213,7 +226,7 @@ class Bot {
 
     ctx.answerCallbackQuery('');
 
-    return ctx.editMessageText('Please, enter the owner and name of repo (owner/name) or full url', keyboards.backToActions());
+    return ctx.editMessageText('Please, send me the owner and name of repo (owner/name) or full url', keyboards.backToActions());
   }
 
   async editRepos(ctx) {
@@ -251,7 +264,7 @@ class Bot {
   async getReleases(ctx) {
     ctx.answerCallbackQuery('');
 
-    return ctx.editMessageText('Select', keyboards.allOrOneRepo());
+    return ctx.editMessageText('What list do you want to see?', keyboards.allOrOneRepo());
   }
 
   async getReleasesAll(ctx) {
@@ -303,7 +316,7 @@ class Bot {
         );
       }
     } catch (error) {
-      return ctx.editMessageText('Broken data');
+      return ctx.editMessageText('Data is broken');
     }
   }
 
