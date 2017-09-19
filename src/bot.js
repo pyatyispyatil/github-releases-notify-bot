@@ -7,7 +7,7 @@ const {getVersions} = require('./github-client');
 const API_TOKEN = config.telegram.token || '';
 
 const about = `
-Bot for notification of new releases in repositories about which you tell him. Checking for new releases occurs every ${config.app.updateInterval / 60} minutes.
+Bot to notify you about new releases in the repositories that you add to the subscription. New releases are checked every ${config.app.updateInterval / 60} minutes.
 
 *GitHub repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
 
