@@ -115,7 +115,7 @@ class DB {
 
   async updateRepo(owner, name, newReleases) {
     const {releases} = await this.repos.findOne({owner, name});
-    const filteredReleases = this.compareReleases(releases, newReleases);
+    const filteredReleases = this.findNewReleases(releases, newReleases);
 
     return await this.repos.updateOne({owner, name}, {
       $push: {
@@ -127,22 +127,11 @@ class DB {
   async updateRepos(data) {
     const repos = await this.getAllRepos();
 
-    const findSimilar = (arr, repo) => arr.find(({owner, name}) => owner === repo.owner && name === repo.name);
-
-    const updates = data
-      .map((update) => {
-        const similarRepo = findSimilar(repos, update);
-
-        return {
-          owner: update.owner,
-          name: update.name,
-          releases: this.compareReleases(similarRepo.releases, update.releases),
-          watchedUsers: similarRepo.watchedUsers
-        }
-      })
+    const newUpdates = data
+      .map(this.getMapForReleases(repos, this.findNewReleases))
       .filter((update) => update.releases.length);
 
-    const preparedUpdates = updates.map((update) => ({
+    const preparedNewReleases = newUpdates.map((update) => ({
       filter: {
         owner: update.owner,
         name: update.name
@@ -154,9 +143,45 @@ class DB {
       }
     }));
 
-    await Promise.all([...preparedUpdates.map(({filter, update}) => this.repos.updateOne(filter, update))]);
+    const changeUpdates = data
+      .map(this.getMapForReleases(repos, this.findChangedReleases))
+      .filter((update) => update.releases.length);
 
-    return updates;
+    const preparedChangedReleases = changeUpdates
+      .reduce((acc, {owner, name, releases}) => acc.concat(
+        releases.map((release) => ({
+            owner,
+            name,
+            release
+          })
+        )
+      ), [])
+      .map((update) => ({
+        filter: {
+          owner: update.owner,
+          name: update.name,
+          'releases.name': update.release.name
+        },
+        update: {
+          $set: {
+            'releases.$': {
+              name: update.release.name,
+              description: update.release.description,
+              isPrerelease: update.release.isPrerelease,
+              url: update.release.url,
+            }
+          }
+        }
+      }));
+
+    await Promise.all([
+      ...[
+        ...preparedNewReleases,
+        ...preparedChangedReleases
+      ].map(({filter, update}) => this.repos.updateOne(filter, update))
+    ]);
+
+    return [...newUpdates, ...changeUpdates];
   }
 
   async bindUserToRepo(userId, owner, name) {
@@ -193,9 +218,34 @@ class DB {
     ]);
   }
 
-  compareReleases(oldReleases, newReleases) {
+  getMapForReleases(repos, releasesFilter) {
+    const findSimilar = (arr, repo) => arr.find(({owner, name}) => owner === repo.owner && name === repo.name);
+
+    return (update) => {
+      const similarRepo = findSimilar(repos, update);
+
+      return {
+        owner: update.owner,
+        name: update.name,
+        releases: releasesFilter(similarRepo.releases, update.releases),
+        watchedUsers: similarRepo.watchedUsers
+      }
+    }
+  }
+
+  findNewReleases(oldReleases, newReleases) {
     return newReleases.filter((newRelease) => (
       !oldReleases.some((oldRelease) => oldRelease.name === newRelease.name)
+    ));
+  }
+
+  findChangedReleases(oldReleases, newReleases) {
+    return newReleases.filter((newRelease) => (
+      oldReleases.some((oldRelease) => (
+        oldRelease.name === newRelease.name
+        && oldRelease.description !== newRelease.description
+        && oldRelease.isPrerelease !== newRelease.isPrerelease
+      ))
     ));
   }
 }
