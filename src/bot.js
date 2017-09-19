@@ -40,7 +40,7 @@ const getReleaseMessages = (repo, release) => ({
 const parseRepo = (str) => {
   let owner, name;
 
-  if (str) {
+  if (str && typeof str === 'string') {
     const isUrl = /https?:\/\//.test(str);
 
     if (isUrl) {
