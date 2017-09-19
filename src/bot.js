@@ -7,14 +7,18 @@ const {getVersions} = require('./github-client');
 const API_TOKEN = config.telegram.token || '';
 
 const about = `
-Bot for notification of new releases in repositories about which you tell him. Checking for new releases occurs every ${config.app.updateInterval/60} minutes.
+Bot for notification of new releases in repositories about which you tell him. Checking for new releases occurs every ${config.app.updateInterval / 60} minutes.
 
 *GitHub repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
 
 Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
 `;
 
-const getUser = (ctx) => ctx.message ? ctx.message.from : ctx.update.callback_query.from;
+const getUser = (ctx) => ctx.message ? (
+  ctx.message.chat || ctx.message.from
+) : (
+  ctx.update.callback_query.message.chat || ctx.update.callback_query.from
+);
 
 const getShortReleaseMessage = (repo, release) =>
   `<b>${repo.owner}/${repo.name}</b> 
@@ -103,9 +107,7 @@ const keyboards = {
 
 class Bot {
   constructor(db) {
-    const bot = new Telegraf(API_TOKEN);
-
-    this.bot = bot;
+    this.bot = new Telegraf(API_TOKEN);
     this.db = db;
 
     this.bot.use(memorySession());
@@ -115,8 +117,6 @@ class Bot {
     });
 
     this.listen();
-
-    bot.startPolling();
   }
 
   listen() {
@@ -153,15 +153,15 @@ class Bot {
   };
 
   async start(ctx) {
-    const user = getUser(ctx);
-
-    await this.db.createUser(user);
-
     return this.actions(ctx);
   }
 
-  actions(ctx) {
+  async actions(ctx) {
     ctx.session.action = null;
+
+    const user = getUser(ctx);
+
+    await this.db.createUser(user);
 
     return ctx.reply('Select an action', keyboards.actionsList());
   }
@@ -211,11 +211,15 @@ class Bot {
   addRepo(ctx) {
     ctx.session.action = 'addRepo';
 
+    ctx.answerCallbackQuery('');
+
     return ctx.editMessageText('Please, enter the owner and name of repo (owner/name) or full url', keyboards.backToActions());
   }
 
   async editRepos(ctx) {
     const {subscriptions} = await this.db.getUser(getUser(ctx).id);
+
+    ctx.answerCallbackQuery('');
 
     if (subscriptions && subscriptions.length) {
       const row = (repo) => [
@@ -245,7 +249,9 @@ class Bot {
   }
 
   async getReleases(ctx) {
-    return ctx.editMessageText('Select variant', keyboards.allOrOneRepo());
+    ctx.answerCallbackQuery('');
+
+    return ctx.editMessageText('Select', keyboards.allOrOneRepo());
   }
 
   async getReleasesAll(ctx) {
@@ -265,6 +271,8 @@ class Bot {
 
     ctx.session.subscriptions = subscriptions;
 
+    ctx.answerCallbackQuery('');
+
     return ctx.editMessageText(
       'Select repository',
       keyboards.table(
@@ -276,6 +284,8 @@ class Bot {
   }
 
   async getReleasesOneSelected(ctx) {
+    ctx.answerCallbackQuery('');
+
     try {
       const index = parseInt(ctx.match[1]);
 
@@ -299,6 +309,8 @@ class Bot {
 
   async getReleasesExpanded(ctx) {
     const data = ctx.match[1];
+
+    ctx.answerCallbackQuery('');
 
     try {
       const index = parseInt(data);
@@ -336,6 +348,8 @@ class Bot {
   }
 
   actionsList(ctx) {
+    ctx.answerCallbackQuery('');
+
     return ctx.editMessageText('Select an action', keyboards.actionsList());
   }
 }

@@ -59,17 +59,17 @@ class DB {
     const createdUser = await this.getUser(user.id);
 
     if (!createdUser) {
-      await this.users.insertOne({
+      await this.users.insertOne(Object.assign({
         userId: user.id,
+        subscriptions: [],
+        type: user.type
+      }, user.type === "private" ? {
         firstName: user.first_name,
         lastName: user.last_name,
-        is_bot: user.is_bot,
         username: user.username,
-        lang: user.language_code,
-        subscriptions: []
-      });
-    } else {
-      console.log('User is already created');
+      } : {
+        title: user.title
+      }));
     }
   }
 
