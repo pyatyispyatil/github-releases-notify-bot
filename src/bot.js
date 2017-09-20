@@ -112,7 +112,18 @@ const keyboards = {
     [
       Markup.callbackButton('Back', backActionName)
     ]
-  ]).extra()
+  ]).extra(),
+  //ToDo: pagination
+  paginationTable: (backActionName, actionName, items) => Markup.inlineKeyboard([
+    ...items.map((item, index) => [Markup.callbackButton(item, `${actionName}:${index}`)]),
+    [
+      Markup.callbackButton('prev', ''),
+      Markup.callbackButton('next', '')
+    ],
+    [
+      Markup.callbackButton('Back', backActionName)
+    ]
+  ]).extra(),
 };
 
 
@@ -121,7 +132,9 @@ class Bot {
     this.bot = new Telegraf(API_TOKEN);
     this.db = db;
 
-    this.bot.use(memorySession());
+    this.bot.use(memorySession({
+      getSessionKey: (ctx) => `${ctx.chat && ctx.chat.id}`
+    }));
 
     this.bot.telegram.getMe().then((botInfo) => {
       this.bot.options.username = botInfo.username;
@@ -139,13 +152,14 @@ class Bot {
     this.bot.action('addRepo', this.addRepo.bind(this));
 
     this.bot.action('getReleases', this.getReleases.bind(this));
-    this.bot.action(/getReleases:expand:(.+)/, this.getReleasesExpanded.bind(this));
+    this.bot.action(/^getReleases:expand:(.+)$/, this.getReleasesExpanded.bind(this));
     this.bot.action('getReleases:all', this.getReleasesAll.bind(this));
     this.bot.action('getReleases:one', this.getReleasesOne.bind(this));
-    this.bot.action(/getReleases:one:(.+)/, this.getReleasesOneSelected.bind(this));
+    this.bot.action(/^getReleases:one:(\d+)$/, this.getReleasesOneRepo.bind(this));
+    this.bot.action(/^getReleases:one:(\d+?):release:(\d+?)$/, this.getReleasesOneRepoRelease.bind(this));
 
     this.bot.action('editRepos', this.editRepos.bind(this));
-    this.bot.action(/editRepos:delete:(.+)/, this.editReposDelete.bind(this));
+    this.bot.action(/^editRepos:delete:(.+)$/, this.editReposDelete.bind(this));
 
     this.bot.hears(/.+/, this.handleAnswer.bind(this));
 
@@ -296,7 +310,7 @@ class Bot {
     )
   }
 
-  async getReleasesOneSelected(ctx) {
+  async getReleasesOneRepo(ctx) {
     ctx.answerCallbackQuery('');
 
     try {
@@ -307,12 +321,36 @@ class Bot {
 
         const repo = await this.db.getRepo(owner, name);
 
-        ctx.answerCallbackQuery('');
+        return ctx.editMessageText(
+          'Select release',
+          keyboards.table(
+            `getReleases:one`,
+            `getReleases:one:${index}:release`,
+            repo.releases.slice(-10).map(({name, isPrerelease}) => `${name}${isPrerelease ? ' (pre-release)' : ''}`)
+          )
+        )
+      }
+    } catch (error) {
+      return ctx.editMessageText('Data is broken');
+    }
+  }
+
+  async getReleasesOneRepoRelease(ctx) {
+    ctx.answerCallbackQuery('');
+
+    try {
+      const repoIndex = parseInt(ctx.match[1]);
+      const releaseIndex = parseInt(ctx.match[2]);
+
+      if (ctx.session.subscriptions && ctx.session.subscriptions[repoIndex]) {
+        const {owner, name} = ctx.session.subscriptions[repoIndex];
+
+        const repo = await this.db.getRepo(owner, name);
 
         return this.sendReleases(
-          ctx,
-          [Object.assign(repo, {releases: repo.releases.slice(-5)})],
-          ctx.replyWithHTML
+          null,
+          [Object.assign(repo, {releases: [repo.releases[releaseIndex]]})],
+          ctx.replyWithMarkdown
         );
       }
     } catch (error) {
