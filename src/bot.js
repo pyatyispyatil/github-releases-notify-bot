@@ -6,6 +6,9 @@ const {getVersions} = require('./github-client');
 
 const API_TOKEN = config.telegram.token || '';
 
+const PREVIEW_RELEASES_COUNT = -10;
+const FIRST_UPDATE_RELEASES_COUNT = 20;
+
 const about = `
 Bot to notify you about new releases in the repositories that you add to the subscription. New releases are checked every ${config.app.updateInterval / 60} minutes.
 
@@ -211,7 +214,7 @@ class Bot {
 
             if (!hasRepoInDB) {
               try {
-                const releases = await getVersions(repo.owner, repo.name, 20);
+                const releases = await getVersions(repo.owner, repo.name, FIRST_UPDATE_RELEASES_COUNT);
 
                 await this.db.addRepo(repo.owner, repo.name);
                 await this.db.updateRepo(repo.owner, repo.name, releases);
@@ -326,7 +329,7 @@ class Bot {
           keyboards.table(
             `getReleases:one`,
             `getReleases:one:${index}:release`,
-            repo.releases.slice(-10).map(({name, isPrerelease}) => `${name}${isPrerelease ? ' (pre-release)' : ''}`)
+            repo.releases.slice(PREVIEW_RELEASES_COUNT).map(({name, isPrerelease}) => `${name}${isPrerelease ? ' (pre-release)' : ''}`)
           )
         )
       }
@@ -349,7 +352,7 @@ class Bot {
 
         return this.sendReleases(
           null,
-          [Object.assign(repo, {releases: [repo.releases[releaseIndex]]})],
+          [Object.assign(repo, {releases: [repo.releases.slice(PREVIEW_RELEASES_COUNT)[releaseIndex]]})],
           ctx.replyWithMarkdown
         );
       }
