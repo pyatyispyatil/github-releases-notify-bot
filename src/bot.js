@@ -52,13 +52,14 @@ const getReleaseMessages = (repo, release) => ({
 });
 
 const parseRepo = (str) => {
+  const githubRegexp = /https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i;
   let owner, name;
 
   if (str && typeof str === 'string') {
-    const isUrl = /https?:\/\//.test(str);
+    const match = str.match(githubRegexp);
 
-    if (isUrl) {
-      [, owner, name] = str.match(/https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i);
+    if (match) {
+      [, owner, name] = match;
     } else {
       [owner, name] = str.replace(' ', '').split('/');
     }
