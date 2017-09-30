@@ -70,6 +70,8 @@ class DB {
       } : {
         title: user.title
       }));
+
+      console.log(`user ${user.first_name} ${user.last_name} created`);
     }
   }
 

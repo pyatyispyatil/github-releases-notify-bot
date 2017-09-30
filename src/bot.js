@@ -55,19 +55,23 @@ const parseRepo = (str) => {
   const githubRegexp = /https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i;
   let owner, name;
 
-  if (str && typeof str === 'string') {
-    const match = str.match(githubRegexp);
+  try {
+    if (str && typeof str === 'string') {
+      const match = str.match(githubRegexp);
 
-    if (match) {
-      [, owner, name] = match;
-    } else {
-      [owner, name] = str.replace(' ', '').split('/');
+      if (match) {
+        [, owner, name] = match;
+      } else {
+        [owner, name] = str.replace(' ', '').split('/');
+      }
     }
-  }
 
-  if (owner && name) {
-    return {owner, name};
-  } else {
+    if (owner && name) {
+      return {owner, name};
+    } else {
+      return null;
+    }
+  } catch (err) {
     return null;
   }
 };
