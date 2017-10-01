@@ -8,6 +8,7 @@ const API_TOKEN = config.telegram.token || '';
 
 const PREVIEW_RELEASES_COUNT = -10;
 const FIRST_UPDATE_RELEASES_COUNT = 20;
+const MAX_MESSAGE_LENGTH = 4096;
 
 const about = `
 Bot to notify you about new releases in the repositories that you add to the subscription. New releases are checked every ${config.app.updateInterval / 60} minutes.
@@ -48,8 +49,30 @@ ${release.description
 
 const getReleaseMessages = (repo, release) => ({
   short: getShortReleaseMessage(repo, release),
-  full: getFullReleaseMessage(repo, release)
+  full: splitLongMessage(getFullReleaseMessage(repo, release), MAX_MESSAGE_LENGTH)
 });
+
+
+const splitLongMessage = (message, maxLength) => {
+  const splitRegExp = new RegExp([
+    `([\\s\\S]{1,${maxLength - 1}}([\\n\\r]|$))`,
+    `([\\s\\S]{1,${maxLength - 1}}(\\s|$))`,
+    `([\\s\\S]{1,${maxLength}})`
+  ].join('|'));
+  const splitedMessage = [];
+  let separableString = message;
+
+  while (separableString.length) {
+    const match = separableString.match(splitRegExp);
+
+    if (match) {
+      splitedMessage.push(match[0]);
+      separableString = separableString.substr(match[0].length);
+    }
+  }
+
+  return splitedMessage;
+};
 
 const parseRepo = (str) => {
   const githubRegexp = /https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i;
@@ -160,7 +183,7 @@ class Bot {
     this.bot.action('addRepo', this.addRepo.bind(this));
 
     this.bot.action('getReleases', this.getReleases.bind(this));
-    this.bot.action(/^getReleases:expand:(.+)$/, this.getReleasesExpanded.bind(this));
+    this.bot.action(/^getReleases:expand:(.+)$/, this.getReleasesExpandeRelease.bind(this));
     this.bot.action('getReleases:all', this.getReleasesAll.bind(this));
     this.bot.action('getReleases:one', this.getReleasesOne.bind(this));
     this.bot.action(/^getReleases:one:(\d+)$/, this.getReleasesOneRepo.bind(this));
@@ -339,7 +362,7 @@ class Bot {
         )
       }
     } catch (error) {
-      return ctx.editMessageText('Data is broken');
+      return this.dataBrokenException(ctx);
     }
   }
 
@@ -362,21 +385,29 @@ class Bot {
         );
       }
     } catch (error) {
-      return ctx.editMessageText('Data is broken');
+      return this.dataBrokenException(ctx);
     }
   }
 
-  async getReleasesExpanded(ctx) {
+  async getReleasesExpandeRelease(ctx) {
     const data = ctx.match[1];
 
     ctx.answerCallbackQuery('');
 
     try {
       const index = parseInt(data);
+      const releases = ctx.session.releasesDescriptions;
 
-      return ctx.editMessageText(ctx.session.releasesDescriptions[index], Extra.markdown());
+      if (releases[index].length <= 1) {
+        return ctx.editMessageText(releases[index][0], Extra.markdown())
+      } else {
+        return releases[index]
+          .reduce((promise, message) => promise
+            .then(() => ctx.replyWithMarkdown(message, Extra.markdown())),
+            ctx.deleteMessage(ctx.update.callback_query.id));
+      }
     } catch (error) {
-      return ctx.editMessageText('Data is broken');
+      return this.dataBrokenException(ctx);
     }
   }
 
@@ -386,22 +417,10 @@ class Bot {
     }
 
     return repos.reduce((promise, repo) => {
-      const sendRelease = (lastPromise, release) => {
-        const {full, short} = getReleaseMessages(repo, release);
+      const sendRelease = this.getReleaseSender(ctx, repo, send);
 
-        if (ctx) {
-          ctx.session.releasesDescriptions.push(full);
-
-          const key = keyboards.expandButton(ctx.session.releasesDescriptions.length - 1);
-
-          return lastPromise.then(() => send(short, key, repo));
-        } else {
-          return lastPromise.then(() => send(full, '', repo));
-        }
-      };
-
-      return repo.releases.reduce((lastPromise, release) =>
-          lastPromise.then(() => sendRelease(lastPromise, release)),
+      return repo.releases.reduce((stream, release) =>
+          stream.then(() => sendRelease(stream, release)),
         promise);
     }, Promise.resolve());
   }
@@ -410,6 +429,32 @@ class Bot {
     ctx.answerCallbackQuery('');
 
     return ctx.editMessageText('Select an action', keyboards.actionsList());
+  }
+
+  getReleaseSender(ctx, repo, send) {
+    return (promise, release) => {
+      const {full, short} = getReleaseMessages(repo, release);
+
+      if (ctx) {
+        ctx.session.releasesDescriptions.push(full);
+
+        const key = keyboards.expandButton(ctx.session.releasesDescriptions.length - 1);
+
+        return promise.then(() => send(short, key, repo));
+      } else {
+        return full.reduce((stream, message) =>
+            stream.then(() => send(full, '', repo)),
+          promise);
+      }
+    };
+  }
+
+  dataBrokenException(ctx) {
+    try {
+      return ctx.editMessageText('Data is broken');
+    } catch (error) {
+      return ctx.reply('Data is broken');
+    }
   }
 }
 
