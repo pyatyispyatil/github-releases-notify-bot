@@ -443,7 +443,7 @@ class Bot {
         return promise.then(() => send(short, key, repo));
       } else {
         return full.reduce((stream, message) =>
-            stream.then(() => send(full, '', repo)),
+            stream.then(() => send(message, '', repo)),
           promise);
       }
     };
