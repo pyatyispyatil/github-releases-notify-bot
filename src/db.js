@@ -130,7 +130,7 @@ class DB {
     const repos = await this.getAllRepos();
 
     const newUpdates = data
-      .map(this.getMapForReleases(repos, this.findNewReleases))
+      .map(this.getReleasesModifier(repos, this.findNewReleases))
       .filter((update) => update.releases.length);
 
     const preparedNewReleases = newUpdates.map((update) => ({
@@ -146,7 +146,7 @@ class DB {
     }));
 
     const changeUpdates = data
-      .map(this.getMapForReleases(repos, this.findChangedReleases))
+      .map(this.getReleasesModifier(repos, this.findChangedReleases))
       .filter((update) => update.releases.length);
 
     const preparedChangedReleases = changeUpdates
@@ -220,16 +220,16 @@ class DB {
     ]);
   }
 
-  getMapForReleases(repos, releasesFilter) {
+  getReleasesModifier(repos, releasesFilter) {
     const findSimilar = (arr, repo) => arr.find(({owner, name}) => owner === repo.owner && name === repo.name);
 
-    return (update) => {
-      const similarRepo = findSimilar(repos, update);
+    return (updatedRepo) => {
+      const similarRepo = findSimilar(repos, updatedRepo);
 
       return {
-        owner: update.owner,
-        name: update.name,
-        releases: releasesFilter(similarRepo.releases, update.releases),
+        owner: updatedRepo.owner,
+        name: updatedRepo.name,
+        releases: releasesFilter(similarRepo.releases, updatedRepo.releases),
         watchedUsers: similarRepo.watchedUsers
       }
     }
@@ -244,9 +244,10 @@ class DB {
   findChangedReleases(oldReleases, newReleases) {
     return newReleases.filter((newRelease) => (
       oldReleases.some((oldRelease) => (
-        oldRelease.name === newRelease.name
-        && oldRelease.description !== newRelease.description
-        && oldRelease.isPrerelease !== newRelease.isPrerelease
+        oldRelease.name === newRelease.name && (
+          oldRelease.description !== newRelease.description
+          || oldRelease.isPrerelease !== newRelease.isPrerelease
+        )
       ))
     ));
   }

@@ -1,161 +1,18 @@
 const Telegraf = require('telegraf');
-const config = require('./config.json');
 const {Extra, Markup, memorySession} = require('telegraf');
 
+const keyboards = require('./keyboards');
+const config = require('./config.json');
+const {about, greeting} = require('./texts');
+const {getUser, parseRepo, getLastReleasesInRepos, getReleaseMessages} = require('./utils');
 const {getVersions} = require('./github-client');
+
 
 const API_TOKEN = config.telegram.token || '';
 
 const PREVIEW_RELEASES_COUNT = -10;
 const FIRST_UPDATE_RELEASES_COUNT = 20;
-const MAX_MESSAGE_LENGTH = 4096;
-
-const about = `
-Bot to notify you about new releases in the repositories that you add to the subscription. New releases are checked every ${config.app.updateInterval / 60} minutes.
-
-*GitHub repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
-
-Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
-`;
-
-const greeting = `
-Hello!
-
-That bot can notify you about new releases.
-To receive a notification, you must subscribe to repos that you would like to observe. 
-To do this, click the "Add repository" button.
-
-In addition, you can see the latest releases of your observed repositories. 
-To do this, click the "Get Releases" button.
-`;
-
-const getUser = (ctx) => ctx.message ? (
-  ctx.message.chat || ctx.message.from
-) : (
-  ctx.update.callback_query.message.chat || ctx.update.callback_query.from
-);
-
-const getShortReleaseMessage = (repo, release) =>
-  `<b>${repo.owner}/${repo.name}</b> 
-${release.isPrerelease ? '<b>Pre-release</b> ' : ''}${release.name}`;
-
-const getFullReleaseMessage = (repo, release) =>
-  `*${repo.owner}/${repo.name}*
-${release.isPrerelease ? '*Pre-release* ' : ''}[${release.name}](${release.url})
-${release.description
-    .replace(/\*/mgi, '')
-    .replace(/_/mgi, '\\_')
-    .trim()}`;
-
-const getReleaseMessages = (repo, release) => ({
-  short: getShortReleaseMessage(repo, release),
-  full: splitLongMessage(getFullReleaseMessage(repo, release), MAX_MESSAGE_LENGTH)
-});
-
-
-const splitLongMessage = (message, maxLength) => {
-  const splitRegExp = new RegExp([
-    `([\\s\\S]{1,${maxLength - 1}}([\\n\\r]|$))`,
-    `([\\s\\S]{1,${maxLength - 1}}(\\s|$))`,
-    `([\\s\\S]{1,${maxLength}})`
-  ].join('|'));
-  const splitedMessage = [];
-  let separableString = message;
-
-  while (separableString.length) {
-    const match = separableString.match(splitRegExp);
-
-    if (match) {
-      splitedMessage.push(match[0]);
-      separableString = separableString.substr(match[0].length);
-    }
-  }
-
-  return splitedMessage;
-};
-
-const parseRepo = (str) => {
-  const githubRegexp = /https?:\/\/github\.com\/(.*?)\/(.*?)\/?$/i;
-  let owner, name;
-
-  try {
-    if (str && typeof str === 'string') {
-      const match = str.match(githubRegexp);
-
-      if (match) {
-        [, owner, name] = match;
-      } else {
-        [owner, name] = str.replace(' ', '').split('/');
-      }
-    }
-
-    if (owner && name) {
-      return {owner, name};
-    } else {
-      return null;
-    }
-  } catch (err) {
-    return null;
-  }
-};
-
-const getLastReleasesInRepos = (repo) => {
-  const revertedReleases = repo.releases.slice().reverse();
-
-  const last = revertedReleases[0];
-  const lastRelease = revertedReleases.find((release) => !release.isPrerelease);
-  const releases = [last];
-
-  if (last.isPrerelease && lastRelease) {
-    releases.unshift(lastRelease);
-  }
-
-  return Object.assign({}, repo, {releases});
-};
-
-const keyboards = {
-  actionsList: () => Markup.inlineKeyboard([
-    Markup.callbackButton('Add repository', 'addRepo'),
-    Markup.callbackButton('Subscriptions', 'editRepos'),
-    Markup.callbackButton('Get releases', 'getReleases')
-  ]).extra(),
-  backToActions: () => Markup.inlineKeyboard([
-    Markup.callbackButton('Back', `actionsList`)
-  ]).extra(),
-  addOneMoreRepo: () => Markup.inlineKeyboard([
-    Markup.callbackButton('Yes', `addRepo`),
-    Markup.callbackButton('Nope', `actionsList`)
-  ]).extra(),
-  expandButton: (data) => Markup.inlineKeyboard([
-    Markup.callbackButton('Expand', `getReleases:expand:${data}`)
-  ]).extra(),
-  allOrOneRepo: () => Markup.inlineKeyboard([
-    [
-      Markup.callbackButton('All subscriptions', `getReleases:all`),
-      Markup.callbackButton('One repository', `getReleases:one`)
-    ],
-    [
-      Markup.callbackButton('Back', `actionsList`)
-    ]
-  ]).extra(),
-  table: (backActionName, actionName, items) => Markup.inlineKeyboard([
-    ...items.map((item, index) => [Markup.callbackButton(item, `${actionName}:${index}`)]),
-    [
-      Markup.callbackButton('Back', backActionName)
-    ]
-  ]).extra(),
-  //ToDo: pagination
-  paginationTable: (backActionName, actionName, items) => Markup.inlineKeyboard([
-    ...items.map((item, index) => [Markup.callbackButton(item, `${actionName}:${index}`)]),
-    [
-      Markup.callbackButton('prev', ''),
-      Markup.callbackButton('next', '')
-    ],
-    [
-      Markup.callbackButton('Back', backActionName)
-    ]
-  ]).extra(),
-};
+const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60)*100)/100;
 
 
 class Bot {
@@ -183,7 +40,7 @@ class Bot {
     this.bot.action('addRepo', this.addRepo.bind(this));
 
     this.bot.action('getReleases', this.getReleases.bind(this));
-    this.bot.action(/^getReleases:expand:(.+)$/, this.getReleasesExpandeRelease.bind(this));
+    this.bot.action(/^getReleases:expand:(.+)$/, this.getReleasesExpandRelease.bind(this));
     this.bot.action('getReleases:all', this.getReleasesAll.bind(this));
     this.bot.action('getReleases:one', this.getReleasesOne.bind(this));
     this.bot.action(/^getReleases:one:(\d+)$/, this.getReleasesOneRepo.bind(this));
@@ -209,7 +66,7 @@ class Bot {
   };
 
   async start(ctx) {
-    await ctx.reply(greeting);
+    await ctx.reply(greeting());
 
     return await this.actions(ctx);
   }
@@ -225,7 +82,7 @@ class Bot {
   }
 
   about(ctx) {
-    return ctx.replyWithMarkdown(about);
+    return ctx.replyWithMarkdown(about(UPDATE_INTERVAL));
   }
 
   async handleAnswer(ctx, next) {
@@ -389,7 +246,7 @@ class Bot {
     }
   }
 
-  async getReleasesExpandeRelease(ctx) {
+  async getReleasesExpandRelease(ctx) {
     const data = ctx.match[1];
 
     ctx.answerCallbackQuery('');
