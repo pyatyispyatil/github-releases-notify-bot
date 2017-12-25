@@ -12,7 +12,7 @@ const API_TOKEN = config.telegram.token || '';
 
 const PREVIEW_RELEASES_COUNT = -10;
 const FIRST_UPDATE_RELEASES_COUNT = 20;
-const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60)*100)/100;
+const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60) * 100) / 100;
 
 
 class Bot {
@@ -128,7 +128,7 @@ class Bot {
 
     ctx.answerCallbackQuery('');
 
-    return ctx.editMessageText('Please, send me the owner and name of repo (owner/name) or full url', keyboards.backToActions());
+    return this.editMessageText(ctx, 'Please, send me the owner and name of repo (owner/name) or full url', keyboards.backToActions());
   }
 
   async editRepos(ctx) {
@@ -142,12 +142,12 @@ class Bot {
         Markup.callbackButton('🗑️', `editRepos:delete:${repo.owner}/${repo.name}`)
       ];
 
-      return ctx.editMessageText(
+      return this.editMessageText(ctx,
         'Your subscriptions',
         Markup.inlineKeyboard([...subscriptions.map(row), [Markup.callbackButton('Back', `actionsList`)]]).extra()
       );
     } else {
-      ctx.editMessageText(
+      this.editMessageText(ctx,
         'You do not have a subscriptions',
         keyboards.backToActions()
       );
@@ -166,7 +166,7 @@ class Bot {
   async getReleases(ctx) {
     ctx.answerCallbackQuery('');
 
-    return ctx.editMessageText('What list do you want to see?', keyboards.allOrOneRepo());
+    return this.editMessageText(ctx, 'What list do you want to see?', keyboards.allOrOneRepo());
   }
 
   async getReleasesAll(ctx) {
@@ -188,7 +188,7 @@ class Bot {
 
     ctx.answerCallbackQuery('');
 
-    return ctx.editMessageText(
+    return this.editMessageText(ctx,
       'Select repository',
       keyboards.table(
         'getReleases',
@@ -201,25 +201,23 @@ class Bot {
   async getReleasesOneRepo(ctx) {
     ctx.answerCallbackQuery('');
 
-    try {
-      const index = parseInt(ctx.match[1]);
+    const index = parseInt(ctx.match[1]);
 
-      if (ctx.session.subscriptions && ctx.session.subscriptions[index]) {
-        const {owner, name} = ctx.session.subscriptions[index];
+    if (ctx.session.subscriptions && ctx.session.subscriptions[index]) {
+      const {owner, name} = ctx.session.subscriptions[index];
 
-        const repo = await this.db.getRepo(owner, name);
+      const repo = await this.db.getRepo(owner, name);
 
-        return ctx.editMessageText(
-          'Select release',
-          keyboards.table(
-            `getReleases:one`,
-            `getReleases:one:${index}:release`,
-            repo.releases.slice(PREVIEW_RELEASES_COUNT).map(({name, isPrerelease}) => `${name}${isPrerelease ? ' (pre-release)' : ''}`)
-          )
+      const result = this.editMessageText(ctx,
+        'Select release',
+        keyboards.table(
+          `getReleases:one`,
+          `getReleases:one:${index}:release`,
+          repo.releases.slice(PREVIEW_RELEASES_COUNT).map(({name, isPrerelease}) => `${name}${isPrerelease ? ' (pre-release)' : ''}`)
         )
-      }
-    } catch (error) {
-      return this.dataBrokenException(ctx);
+      );
+
+      return this.checkForExeption(ctx, result);
     }
   }
 
@@ -251,19 +249,21 @@ class Bot {
 
     ctx.answerCallbackQuery('');
 
-    try {
-      const index = parseInt(data);
-      const releases = ctx.session.releasesDescriptions;
+    const index = parseInt(data);
+    const releases = ctx.session.releasesDescriptions;
 
+    if (releases && releases[index]) {
       if (releases[index].length <= 1) {
-        return ctx.editMessageText(releases[index][0], Extra.markdown())
+        const result = await this.editMessageText(ctx, releases[index][0], Extra.markdown());
+
+        return this.checkForExeption(ctx, result);
       } else {
         return releases[index]
           .reduce((promise, message) => promise
             .then(() => ctx.replyWithMarkdown(message, Extra.markdown())),
             ctx.deleteMessage(ctx.update.callback_query.id));
       }
-    } catch (error) {
+    } else {
       return this.dataBrokenException(ctx);
     }
   }
@@ -285,7 +285,7 @@ class Bot {
   actionsList(ctx) {
     ctx.answerCallbackQuery('');
 
-    return ctx.editMessageText('Select an action', keyboards.actionsList());
+    return this.editMessageText(ctx, 'Select an action', keyboards.actionsList());
   }
 
   getReleaseSender(ctx, repo, send) {
@@ -308,9 +308,21 @@ class Bot {
 
   dataBrokenException(ctx) {
     try {
-      return ctx.editMessageText('Data is broken');
+      return this.editMessageText(ctx, 'Data is broken');
     } catch (error) {
       return ctx.reply('Data is broken');
+    }
+  }
+
+  async checkForExeption(ctx, result) {
+    return result === null ? this.dataBrokenException(ctx) : result;
+  }
+
+  async editMessageText(ctx, ...message) {
+    try {
+      return await ctx.editMessageText(...message);
+    } catch (err) {
+      return null;
     }
   }
 }
