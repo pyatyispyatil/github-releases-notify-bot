@@ -62,16 +62,19 @@ class DB {
       await this.users.insertOne(Object.assign({
         userId: user.id,
         subscriptions: [],
-        type: user.type
+        type: user.type,
+        username: user.username
       }, user.type === "private" ? {
+        isBot: user.is_bot,
         firstName: user.first_name,
-        lastName: user.last_name,
-        username: user.username,
+        lastName: user.last_name
       } : {
         title: user.title
       }));
 
-      console.log(`user ${user.first_name} ${user.last_name} created`);
+      const userTitle = user.type === 'private' ? `${user.first_name} ${user.last_name}` : user.title;
+
+      console.log(`user ${userTitle} created`);
     }
   }
 
