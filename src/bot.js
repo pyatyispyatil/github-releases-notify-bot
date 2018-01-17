@@ -290,7 +290,7 @@ class Bot {
 
   getReleaseSender(ctx, repo, send) {
     return (promise, release) => {
-      const {full, short} = getReleaseMessages(repo, release);
+      const {full, short} = getReleaseMessages(repo, release || {});
 
       if (ctx) {
         ctx.session.releasesDescriptions.push(full);
