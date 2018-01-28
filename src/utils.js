@@ -77,9 +77,9 @@ const getLastReleasesInRepos = (repo) => {
 
   const last = revertedReleases[0];
   const lastRelease = revertedReleases.find((release) => !release.isPrerelease);
-  const releases = [last];
+  const releases = last ? [last] : [];
 
-  if (last.isPrerelease && lastRelease) {
+  if (last && last.isPrerelease && lastRelease) {
     releases.unshift(lastRelease);
   }
 
