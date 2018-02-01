@@ -6,11 +6,11 @@ const getUser = (ctx) => ctx.message ? (
   ctx.update.callback_query.message.chat || ctx.update.callback_query.from
 );
 
-const getShortReleaseMessage = (repo, release) =>
+const getShortReleaseMessage = (repo = {owner: '', name: ''}, release = {name: ''}) =>
   `<b>${repo.owner}/${repo.name}</b> 
 ${release.isPrerelease ? '<b>Pre-release</b> ' : ''}${release.name}`;
 
-const getFullReleaseMessage = (repo, release) =>
+const getFullReleaseMessage = (repo = {owner: '', name: ''}, release = {name: '', url: ''}) =>
   `*${repo.owner}/${repo.name}*
 ${release.isPrerelease ? '*Pre-release* ' : ''}[${release.name}](${release.url})
 ${

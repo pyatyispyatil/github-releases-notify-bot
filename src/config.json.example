@@ -11,6 +11,8 @@
     "token": ""
   },
   "app": {
-    "updateInterval": 300
+    "updateInterval": 300,
+    "logs": "./app.log",
+    "restartRate": 180
   }
 }

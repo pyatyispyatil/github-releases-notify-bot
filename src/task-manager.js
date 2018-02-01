@@ -10,7 +10,7 @@ class TaskManager {
   }
 
   add(name, cb, interval) {
-    const descriptor = setInterval(() => this.execute(name), interval*1000);
+    const descriptor = setInterval(() => this.execute(name), interval * 1000);
 
     this.tasks[name] = {
       descriptor,
@@ -30,4 +30,6 @@ class TaskManager {
   }
 }
 
-module.exports = new TaskManager();
+module.exports = {
+  TaskManager
+};
