@@ -12,20 +12,20 @@ class Logger {
   }
 
   end() {
-    this.stream.uncork();
     this.stream.end('done');
   }
 
   error(...args) {
+    console.log(...args);
     this.output(args, 'error');
   }
 
   log(...args) {
+    console.log(...args);
     this.output(args, 'info');
   }
 
   output(items, type) {
-    this.stream.cork();
     this.stream.write(`${(new Date).toISOString()} | ${type} | ${items.map((item) => item.toString()).join(' ')}\n`);
   }
 }

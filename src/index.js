@@ -17,9 +17,6 @@ const workers = process.env.WORKERS || 1;
 process.on('uncaughtException', (err) => {
   logger.error(`uncaughtException: ${err.message}`);
   logger.error(err.stack.toString());
-
-  logger.end();
-  process.exit(1);
 });
 
 const run = async () => {
