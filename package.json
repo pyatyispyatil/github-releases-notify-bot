@@ -1,6 +1,6 @@
 {
   "name": "github-releases-notify-bot",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "GitHub releases bot for Telegram",
   "main": "src/index.js",
   "scripts": {
