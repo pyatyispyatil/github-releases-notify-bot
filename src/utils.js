@@ -7,14 +7,14 @@ const getUser = (ctx) => ctx.message ? (
 );
 
 const getShortReleaseMessage = (repo = {owner: '', name: ''}, release = {name: ''}) =>
-  `<b>${repo.owner}/${repo.name}</b> 
-${release.isPrerelease ? '<b>Pre-release</b> ' : ''}${release.name}`;
+  `<b>${repo && repo.owner}/${repo && repo.name}</b> 
+${release && release.isPrerelease ? '<b>Pre-release</b> ' : ''}${release && release.name}`;
 
 const getFullReleaseMessage = (repo = {owner: '', name: ''}, release = {name: '', url: ''}) =>
-  `*${repo.owner}/${repo.name}*
-${release.isPrerelease ? '*Pre-release* ' : ''}[${release.name}](${release.url})
+  `*${repo && repo.owner}/${repo && repo.name}*
+${release && release.isPrerelease ? '*Pre-release* ' : ''}[${release && release.name}](${release && release.url})
 ${
-    release.description
+    release && release.description
       .replace(/\*/mgi, '')
       .replace(/_/mgi, '\\_')
       .trim()

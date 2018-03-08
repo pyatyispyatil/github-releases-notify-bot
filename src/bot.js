@@ -16,9 +16,10 @@ const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60) * 100) / 100
 
 
 class Bot {
-  constructor(db) {
+  constructor(db, logger) {
     this.bot = new Telegraf(API_TOKEN);
     this.db = db;
+    this.logger = logger;
 
     this.bot.use(memorySession({
       getSessionKey: (ctx) => `${ctx.chat && ctx.chat.id}`
@@ -32,26 +33,37 @@ class Bot {
   }
 
   listen() {
-    this.bot.command('start', this.start.bind(this));
-    this.bot.command('actions', this.actions.bind(this));
-    this.bot.command('about', this.about.bind(this));
+    this.bot.command('start', this.wrapAction(this.start));
+    this.bot.command('actions', this.wrapAction(this.actions));
+    this.bot.command('about', this.wrapAction(this.about));
 
-    this.bot.action('actionsList', this.actionsList.bind(this));
-    this.bot.action('addRepo', this.addRepo.bind(this));
+    this.bot.action('actionsList', this.wrapAction(this.actionsList));
+    this.bot.action('addRepo', this.wrapAction(this.addRepo));
 
-    this.bot.action('getReleases', this.getReleases.bind(this));
-    this.bot.action(/^getReleases:expand:(.+)$/, this.getReleasesExpandRelease.bind(this));
-    this.bot.action('getReleases:all', this.getReleasesAll.bind(this));
-    this.bot.action('getReleases:one', this.getReleasesOne.bind(this));
-    this.bot.action(/^getReleases:one:(\d+)$/, this.getReleasesOneRepo.bind(this));
-    this.bot.action(/^getReleases:one:(\d+?):release:(\d+?)$/, this.getReleasesOneRepoRelease.bind(this));
+    this.bot.action('getReleases', this.wrapAction(this.getReleases));
+    this.bot.action(/^getReleases:expand:(.+)$/, this.wrapAction(this.getReleasesExpandRelease));
+    this.bot.action('getReleases:all', this.wrapAction(this.getReleasesAll));
+    this.bot.action('getReleases:one', this.wrapAction(this.getReleasesOne));
+    this.bot.action(/^getReleases:one:(\d+)$/, this.wrapAction(this.getReleasesOneRepo));
+    this.bot.action(/^getReleases:one:(\d+?):release:(\d+?)$/, this.wrapAction(this.getReleasesOneRepoRelease));
 
-    this.bot.action('editRepos', this.editRepos.bind(this));
-    this.bot.action(/^editRepos:delete:(.+)$/, this.editReposDelete.bind(this));
+    this.bot.action('editRepos', this.wrapAction(this.editRepos));
+    this.bot.action(/^editRepos:delete:(.+)$/, this.wrapAction(this.editReposDelete));
 
-    this.bot.hears(/.+/, this.handleAnswer.bind(this));
+    this.bot.hears(/.+/, this.wrapAction(this.handleAnswer));
 
     this.bot.startPolling();
+  }
+
+  wrapAction(action) {
+    return async (...args) => {
+      try {
+        return await action.apply(this, args);
+      } catch(error) {
+        this.logger.error(`uncaughtException: ${error.message}`);
+        this.logger.error(error.stack.toString());
+      }
+    }
   }
 
   async notifyUsers(repos) {

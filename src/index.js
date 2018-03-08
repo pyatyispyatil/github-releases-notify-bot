@@ -30,7 +30,7 @@ const run = async () => {
     logger.error(error);
   }
 
-  const bot = new Bot(db);
+  const bot = new Bot(db, logger);
 
   const updateReleasesTask = async () => {
     const repos = await db.getAllRepos();
