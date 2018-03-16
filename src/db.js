@@ -133,10 +133,11 @@ class DB {
     const repos = await this.getAllRepos();
 
     const newUpdates = data
+      .filter(Boolean)
       .map(this.getReleasesModifier(repos, this.findNewReleases))
       .filter((update) => update.releases.length);
 
-    const preparedNewReleases = newUpdates.map((update) => ({
+    const preparedNewReleases = newUpdates.filter(Boolean).map((update) => ({
       filter: {
         owner: update.owner,
         name: update.name
@@ -149,10 +150,12 @@ class DB {
     }));
 
     const changeUpdates = data
+      .filter(Boolean)
       .map(this.getReleasesModifier(repos, this.findChangedReleases))
       .filter((update) => update.releases.length);
 
     const preparedChangedReleases = changeUpdates
+      .filter(Boolean)
       .reduce((acc, {owner, name, releases}) => acc.concat(
         releases.map((release) => ({
             owner,
@@ -161,6 +164,7 @@ class DB {
           })
         )
       ), [])
+      .filter(Boolean)
       .map((update) => ({
         filter: {
           owner: update.owner,
@@ -224,9 +228,11 @@ class DB {
   }
 
   getReleasesModifier(repos, releasesFilter) {
-    const findSimilar = (arr, repo) => arr.find(({owner, name}) => owner === repo.owner && name === repo.name);
+    const findSimilar = (arr, repo) => arr
+      .filter(Boolean)
+      .find(({owner, name}) => owner === repo.owner && name === repo.name);
 
-    return (updatedRepo) => {
+    return (updatedRepo = {}) => {
       const similarRepo = findSimilar(repos, updatedRepo);
 
       return {
@@ -240,14 +246,18 @@ class DB {
 
   findNewReleases(oldReleases, newReleases) {
     return newReleases.filter((newRelease) => (
-      !oldReleases.some((oldRelease) => oldRelease.name === newRelease.name)
+      newRelease && !oldReleases.some((oldRelease) =>
+        oldRelease && (oldRelease.name === newRelease.name)
+      )
     ));
   }
 
   findChangedReleases(oldReleases, newReleases) {
     return newReleases.filter((newRelease) => (
-      oldReleases.some((oldRelease) => (
-        oldRelease.name === newRelease.name && (
+      newRelease && oldReleases.some((oldRelease) => (
+        oldRelease && (
+          oldRelease.name === newRelease.name
+        ) && (
           oldRelease.description !== newRelease.description
           || oldRelease.isPrerelease !== newRelease.isPrerelease
         )
