@@ -19,6 +19,11 @@ process.on('uncaughtException', (err) => {
   logger.error(err.stack.toString());
 });
 
+process.on('unhandledRejection', (err) => {
+  logger.error(`unhandledRejection: ${err.message}`);
+  logger.error(err.stack.toString());
+});
+
 const run = async () => {
   logger.log('Worker initializing');
 

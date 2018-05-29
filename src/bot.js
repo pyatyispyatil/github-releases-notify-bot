@@ -6,9 +6,11 @@ const config = require('./config.json');
 const {about, greeting} = require('./texts');
 const {getUser, parseRepo, getLastReleasesInRepos, getReleaseMessages} = require('./utils');
 const {getVersions} = require('./github-client');
+const SocksProxyAgent = require('socks-proxy-agent');
 
 
 const API_TOKEN = config.telegram.token || '';
+const PROXY_URI = config.telegram.proxy || '';
 
 const PREVIEW_RELEASES_COUNT = -10;
 const FIRST_UPDATE_RELEASES_COUNT = 20;
@@ -17,7 +19,12 @@ const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60) * 100) / 100
 
 class Bot {
   constructor(db, logger) {
-    this.bot = new Telegraf(API_TOKEN);
+    this.bot = new Telegraf(API_TOKEN, {
+      telegram: PROXY_URI ? {
+        agent: new SocksProxyAgent(PROXY_URI)
+      } : {},
+      channelMode: false
+    });
     this.db = db;
     this.logger = logger;
 
@@ -30,6 +37,8 @@ class Bot {
     });
 
     this.listen();
+
+    this.logger.log('Bot listen');
   }
 
   listen() {

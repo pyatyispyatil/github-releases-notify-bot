@@ -3,16 +3,7 @@ const fs = require('fs');
 
 class Logger {
   constructor(path) {
-    this.stream = fs.createWriteStream(path, {
-      flags: 'a',
-      encoding: 'utf8',
-      mode: 0o666,
-      autoClose: true
-    });
-  }
-
-  end() {
-    this.stream.end('done');
+    this.path = path;
   }
 
   error(...args) {
@@ -26,7 +17,9 @@ class Logger {
   }
 
   output(items, type) {
-    this.stream.write(`${(new Date).toISOString()} | ${type} | ${items.map((item) => item.toString()).join(' ')}\n`);
+    const str = `${(new Date).toISOString()} | ${type} | ${items.map((item) => item.toString()).join(' ')}\n`;
+
+    fs.writeFileSync(this.path, str, {flag: 'a+'});
   }
 }
 

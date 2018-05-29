@@ -12,6 +12,7 @@
   "dependencies": {
     "graphql-client": "^2.0.0",
     "mongodb": "^2.2.31",
+    "socks-proxy-agent": "^4.0.1",
     "telegraf": "^3.10.1"
   }
 }
