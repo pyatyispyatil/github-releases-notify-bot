@@ -31,6 +31,9 @@ class Bot {
     this.bot.use(memorySession({
       getSessionKey: (ctx) => `${ctx.chat && ctx.chat.id}`
     }));
+    this.bot.catch((err) => {
+      this.logger.error(err);
+    });
 
     this.bot.telegram.getMe().then((botInfo) => {
       this.bot.options.username = botInfo.username;
@@ -42,22 +45,26 @@ class Bot {
   }
 
   listen() {
-    this.bot.command('start', this.wrapAction(this.start));
-    this.bot.command('actions', this.wrapAction(this.actions));
-    this.bot.command('about', this.wrapAction(this.about));
+    const commands = [
+      ['start', this.start],
+      ['actions', this.actions],
+      ['about', this.about]
+    ];
+    const actions = [
+      ['actionsList', this.actionsList],
+      ['addRepo', this.addRepo],
+      ['getReleases', this.getReleases],
+      [/^getReleases:expand:(.+)$/, this.getReleasesExpandRelease],
+      ['getReleases:all', this.getReleasesAll],
+      ['getReleases:one', this.getReleasesOne],
+      [/^getReleases:one:(\d+)$/, this.getReleasesOneRepo],
+      [/^getReleases:one:(\d+?):release:(\d+?)$/, this.getReleasesOneRepoRelease],
+      ['editRepos', this.editRepos],
+      [/^editRepos:delete:(.+)$/, this.editReposDelete]
+    ];
 
-    this.bot.action('actionsList', this.wrapAction(this.actionsList));
-    this.bot.action('addRepo', this.wrapAction(this.addRepo));
-
-    this.bot.action('getReleases', this.wrapAction(this.getReleases));
-    this.bot.action(/^getReleases:expand:(.+)$/, this.wrapAction(this.getReleasesExpandRelease));
-    this.bot.action('getReleases:all', this.wrapAction(this.getReleasesAll));
-    this.bot.action('getReleases:one', this.wrapAction(this.getReleasesOne));
-    this.bot.action(/^getReleases:one:(\d+)$/, this.wrapAction(this.getReleasesOneRepo));
-    this.bot.action(/^getReleases:one:(\d+?):release:(\d+?)$/, this.wrapAction(this.getReleasesOneRepoRelease));
-
-    this.bot.action('editRepos', this.wrapAction(this.editRepos));
-    this.bot.action(/^editRepos:delete:(.+)$/, this.wrapAction(this.editReposDelete));
+    commands.forEach(([command, fn]) => this.bot.command(command, this.wrapAction(fn)));
+    actions.forEach(([action, fn]) => this.bot.action(action, this.wrapAction(fn)));
 
     this.bot.hears(/.+/, this.wrapAction(this.handleAnswer));
 
@@ -68,7 +75,7 @@ class Bot {
     return async (...args) => {
       try {
         return await action.apply(this, args);
-      } catch(error) {
+      } catch (error) {
         this.logger.error(`uncaughtException: ${error.message}`);
         this.logger.error(error.stack.toString());
       }
