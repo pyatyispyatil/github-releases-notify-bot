@@ -12,7 +12,7 @@ const prepareRelease = ({url, isPrerelease, description, tag}) => ({
   url,
   description,
   isPrerelease,
-  name: tag.name
+  name: tag && tag.name
 });
 
 const prepareReleases = (res) => res ? ((res.data && res.data.repository) || res).releases.nodes.map(prepareRelease) : [];
