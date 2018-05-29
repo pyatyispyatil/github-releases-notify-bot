@@ -38,11 +38,15 @@ const run = async () => {
   const bot = new Bot(db, logger);
 
   const updateReleasesTask = async () => {
-    const repos = await db.getAllRepos();
+    try {
+      const repos = await db.getAllRepos();
 
-    const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
+      const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
 
-    return await db.updateRepos(updates);
+      return await db.updateRepos(updates);
+    } catch (err) {
+      logger.error(err);
+    }
   };
 
   tasks.add('releases', updateReleasesTask, config.app.updateInterval || 60 * 5);
