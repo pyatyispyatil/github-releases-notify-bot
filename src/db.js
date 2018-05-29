@@ -63,7 +63,8 @@ class DB {
         userId: user.id,
         subscriptions: [],
         type: user.type,
-        username: user.username
+        username: user.username,
+        date: (new Date()).toISOString(),
       }, user.type === "private" ? {
         isBot: user.is_bot,
         firstName: user.first_name,
