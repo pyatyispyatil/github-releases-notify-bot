@@ -14,11 +14,12 @@ const getFullReleaseMessage = (repo = {owner: '', name: ''}, release = {name: ''
   `*${repo && repo.owner}/${repo && repo.name}*
 ${release && release.isPrerelease ? '*Pre-release* ' : ''}[${release && release.name}](${release && release.url})
 ${
-    release && release.description && release.description
-      .replace(/\*/mgi, '')
-      .replace(/_/mgi, '\\_')
-      .trim()
-    }`;
+    release && release.description ? (
+      release.description
+        .replace(/\*/mgi, '')
+        .replace(/_/mgi, '\\_')
+        .trim()
+    ) : ''}`;
 
 const splitLongMessage = (message, maxLength) => {
   const splitRegExp = new RegExp([

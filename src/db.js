@@ -89,7 +89,8 @@ class DB {
         owner,
         name,
         watchedUsers: [],
-        releases: []
+        releases: [],
+        tags: []
       });
 
       return 'new';
@@ -111,6 +112,10 @@ class DB {
     return await this.users.findOne({userId});
   }
 
+  async getAllUsers() {
+    return await this.users.find().toArray();
+  }
+
   async getRepo(owner, name) {
     return await this.repos.findOne({owner, name});
   }
@@ -119,43 +124,58 @@ class DB {
     return await this.repos.find().toArray();
   }
 
-  async updateRepo(owner, name, newReleases) {
-    const {releases} = await this.repos.findOne({owner, name});
+  async updateRepo(owner, name, {releases: newReleases, tags: newTags}) {
+    const {releases, tags} = await this.repos.findOne({owner, name});
+
     const filteredReleases = this.findNewReleases(releases, newReleases);
+    const filteredTags = this.findNewReleases(tags, newTags);
 
     return await this.repos.updateOne({owner, name}, {
       $push: {
-        releases: {$each: filteredReleases}
+        releases: {$each: filteredReleases},
+        tags: {$each: filteredTags}
       }
     }, {upsert: true});
   }
 
-  async updateRepos(data) {
+  async updateRepos({releases, tags}) {
     const repos = await this.getAllRepos();
 
-    const newUpdates = data
-      .filter(Boolean)
-      .map(this.getReleasesModifier(repos, this.findNewReleases))
-      .filter((update) => update.releases.length);
+    const newReleasesUpdates = this.modifyReleases(releases, repos, 'releases', this.findNewReleases);
+    const newTagsUpdates = this.modifyReleases(tags, repos, 'tags', this.findNewReleases);
 
-    const preparedNewReleases = newUpdates.filter(Boolean).map((update) => ({
-      filter: {
-        owner: update.owner,
-        name: update.name
-      },
-      update: {
-        $push: {
-          releases: {$each: update.releases}
-        }
-      }
-    }));
+    const preparedNewReleases = [
+      ...newReleasesUpdates
+        .filter(Boolean)
+        .map((update) => ({
+          filter: {
+            owner: update.owner,
+            name: update.name
+          },
+          update: {
+            $push: {
+              releases: {$each: update.releases}
+            }
+          }
+        })),
+      ...newTagsUpdates
+        .filter(Boolean)
+        .map((update) => ({
+          filter: {
+            owner: update.owner,
+            name: update.name
+          },
+          update: {
+            $push: {
+              tags: {$each: update.tags}
+            }
+          }
+        }))
+    ];
 
-    const changeUpdates = data
-      .filter(Boolean)
-      .map(this.getReleasesModifier(repos, this.findChangedReleases))
-      .filter((update) => update.releases.length);
+    const changedUpdates = this.modifyReleases(releases, repos, 'releases', this.findChangedReleases);
 
-    const preparedChangedReleases = changeUpdates
+    const preparedChangedReleases = changedUpdates
       .filter(Boolean)
       .reduce((acc, {owner, name, releases}) => acc.concat(
         releases.map((release) => ({
@@ -191,7 +211,7 @@ class DB {
       ].map(({filter, update}) => this.repos.updateOne(filter, update))
     ]);
 
-    return [...newUpdates, ...changeUpdates];
+    return [...newReleasesUpdates, ...changedUpdates];
   }
 
   async bindUserToRepo(userId, owner, name) {
@@ -228,21 +248,24 @@ class DB {
     ]);
   }
 
-  getReleasesModifier(repos, releasesFilter) {
+  modifyReleases(entries, repos, type, releasesFilter) {
     const findSimilar = (arr, repo) => arr
       .filter(Boolean)
       .find(({owner, name}) => owner === repo.owner && name === repo.name);
 
-    return (updatedRepo = {}) => {
-      const similarRepo = findSimilar(repos, updatedRepo);
+    return entries
+      .filter(Boolean)
+      .map((updatedRepo = {}) => {
+        const similarRepo = findSimilar(repos, updatedRepo);
 
-      return {
-        owner: updatedRepo.owner,
-        name: updatedRepo.name,
-        releases: releasesFilter(similarRepo.releases, updatedRepo.releases),
-        watchedUsers: similarRepo.watchedUsers
-      }
-    }
+        return {
+          owner: updatedRepo.owner,
+          name: updatedRepo.name,
+          [type]: releasesFilter(similarRepo[type], updatedRepo[type]),
+          watchedUsers: similarRepo.watchedUsers
+        }
+      })
+      .filter((update) => update[type].length)
   }
 
   findNewReleases(oldReleases, newReleases) {

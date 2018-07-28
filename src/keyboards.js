@@ -6,6 +6,12 @@ module.exports = {
     Markup.callbackButton('Subscriptions', 'editRepos'),
     Markup.callbackButton('Get releases', 'getReleases')
   ]).extra(),
+  adminActionsList: () => Markup.inlineKeyboard([
+    Markup.callbackButton('Send message', 'sendMessage')
+  ]).extra(),
+  backToAdminActions: () => Markup.inlineKeyboard([
+    Markup.callbackButton('Back', `adminActionsList`)
+  ]).extra(),
   backToActions: () => Markup.inlineKeyboard([
     Markup.callbackButton('Back', `actionsList`)
   ]).extra(),

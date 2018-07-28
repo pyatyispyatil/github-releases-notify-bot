@@ -11,6 +11,7 @@
     "token": "",
     "proxy": ""
   },
+  "adminUserName": "",
   "app": {
     "updateInterval": 300,
     "logs": "./app.log",

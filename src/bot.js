@@ -48,10 +48,12 @@ class Bot {
     const commands = [
       ['start', this.start],
       ['actions', this.actions],
-      ['about', this.about]
+      ['about', this.about],
+      ['admin', this.admin]
     ];
     const actions = [
       ['actionsList', this.actionsList],
+      ['adminActionsList', this.adminActionsList],
       ['addRepo', this.addRepo],
       ['getReleases', this.getReleases],
       [/^getReleases:expand:(.+)$/, this.getReleasesExpandRelease],
@@ -60,7 +62,8 @@ class Bot {
       [/^getReleases:one:(\d+)$/, this.getReleasesOneRepo],
       [/^getReleases:one:(\d+?):release:(\d+?)$/, this.getReleasesOneRepoRelease],
       ['editRepos', this.editRepos],
-      [/^editRepos:delete:(.+)$/, this.editReposDelete]
+      [/^editRepos:delete:(.+)$/, this.editReposDelete],
+      ['sendMessage', this.sendMessage]
     ];
 
     commands.forEach(([command, fn]) => this.bot.command(command, this.wrapAction(fn)));
@@ -86,10 +89,16 @@ class Bot {
     await this.sendReleases(
       null,
       repos,
-      (markdown, key, {watchedUsers}) =>
-        watchedUsers.reduce((promise, userId) =>
-            promise.then(() => this.bot.telegram.sendMessage(userId, markdown, Extra.markdown())),
-          Promise.resolve())
+      async (markdown, key, {watchedUsers}) => {
+        await Promise.all(watchedUsers.map(async (userId) => {
+          try {
+            await this.bot.telegram.sendMessage(userId, markdown, Extra.markdown());
+          } catch (error) {
+            this.logger.error(`Cannot send releases to user: ${userId}`);
+            this.logger.error(error.stack.toString());
+          }
+        }));
+      }
     );
   };
 
@@ -107,6 +116,16 @@ class Bot {
     await this.db.createUser(user);
 
     return ctx.reply('Select an action', keyboards.actionsList());
+  }
+
+  admin(ctx) {
+    const user = getUser(ctx);
+
+    if (user.username === config.adminUserName) {
+      return ctx.reply('Select an action', keyboards.adminActionsList());
+    } else {
+      return ctx.reply('You are not an administrator');
+    }
   }
 
   about(ctx) {
@@ -143,6 +162,24 @@ class Bot {
             return ctx.reply('Done! Add one more?', keyboards.addOneMoreRepo());
           } else {
             return ctx.reply('Cannot subscribe to this repo. Please enter another:');
+          }
+        case 'sendMessage':
+          if (user.username === config.adminUserName) {
+            const users = await this.db.getAllUsers();
+
+            await Promise.all(users.map(async ({userId, username, firstName, lastName}) => {
+              try {
+                await this.bot.telegram.sendMessage(userId, str, Extra.markdown())
+              } catch (err) {
+                this.logger.error(`Cannot send message to user: ${userId} | ${username} | ${firstName} | ${lastName}`);
+              }
+            }));
+
+            ctx.session.action = null;
+
+            return ctx.reply('Message sent');
+          } else {
+            return ctx.reply('You are not an administrator')
           }
         default:
           ctx.session.action = null;
@@ -314,6 +351,20 @@ class Bot {
     ctx.answerCallbackQuery('');
 
     return this.editMessageText(ctx, 'Select an action', keyboards.actionsList());
+  }
+
+  adminActionsList(ctx) {
+    ctx.answerCallbackQuery('');
+
+    return this.editMessageText(ctx, 'Select an action', keyboards.adminActionsList());
+  }
+
+  sendMessage(ctx) {
+    ctx.session.action = 'sendMessage';
+
+    ctx.answerCallbackQuery('');
+
+    return this.editMessageText(ctx, 'Please send me a message that will be sent to all users', keyboards.backToAdminActions());
   }
 
   getReleaseSender(ctx, repo, send) {

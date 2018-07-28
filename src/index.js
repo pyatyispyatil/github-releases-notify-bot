@@ -37,19 +37,22 @@ const run = async () => {
 
   const bot = new Bot(db, logger);
 
-  const updateReleasesTask = async () => {
+  const updateReleases = async () => {
     try {
       const repos = await db.getAllRepos();
 
       const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
 
       return await db.updateRepos(updates);
-    } catch (err) {
-      logger.error(err);
+    } catch (error) {
+      logger.error(`uncaughtException: ${error.message}`);
+      logger.error(error.stack.toString());
+
+      return [];
     }
   };
 
-  tasks.add('releases', updateReleasesTask, config.app.updateInterval || 60 * 5);
+  tasks.add('releases', updateReleases, config.app.updateInterval || 60 * 5);
   tasks.subscribe('releases', bot.notifyUsers.bind(bot));
 
   logger.log('Worker ready');

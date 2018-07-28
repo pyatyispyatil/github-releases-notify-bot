@@ -15,7 +15,7 @@ const prepareRelease = ({url, isPrerelease, description, tag}) => ({
   name: tag && tag.name
 });
 
-const prepareReleases = (res) => res ? ((res.data && res.data.repository) || res).releases.nodes.map(prepareRelease) : [];
+const prepareReleases = (res) => res ? ((res.data && res.data.repository) || res).releases.nodes.filter(Boolean).map(prepareRelease) : [];
 
 const prepareTag = (tag) => ({
   url: '',
@@ -24,7 +24,7 @@ const prepareTag = (tag) => ({
   name: tag.name
 });
 
-const prepareTags = (res) => res ? ((res.data && res.data.repository) || res).refs.nodes.map(prepareTag) : [];
+const prepareTags = (res) => res ? ((res.data && res.data.repository) || res).refs.nodes.filter(Boolean).map(prepareTag) : [];
 
 const releases = (owner, name, count) => `
 repository(owner:"${owner}", name:"${name}") {
@@ -71,12 +71,12 @@ const getMany = (query, repos, count) => {
       query {
         ${repos.map((repo, index) => `repo_${index}: ${query(repo.owner, repo.name, count)}`).join('\n')}
       }`)
-        .then(({data}) =>
-          data ? repos.map((repo, index) => Object.assign(
-            {rawReleases: data['repo_' + index]},
-            repo
-          )) : []
-        );
+      .then(({data}) =>
+        data ? repos.map((repo, index) => Object.assign(
+          {rawReleases: data['repo_' + index]},
+          repo
+        )) : []
+      );
   } else {
     return Promise.resolve([]);
   }
@@ -100,17 +100,11 @@ const getManyTags = (repos, count) => getMany(tags, repos, count)
 
 const getManyVersions = async (repos, count) => {
   const releases = await getManyReleases(repos, count);
+  const releasesUpdates = releases.filter(({releases}) => releases.length);
+  const tags = await getManyTags(repos, count);
+  const tagsUpdates = tags.filter(({releases}) => releases.length);
 
-  const reposWithoutReleases = releases.filter(({releases}) => !releases.length);
-  const updates = releases.filter(({releases}) => releases.length);
-
-  if (reposWithoutReleases.length) {
-    const tags = await getManyTags(reposWithoutReleases, count);
-
-    updates.push(...tags);
-  }
-
-  return updates;
+  return {releases: releasesUpdates, tags: tagsUpdates};
 };
 
 module.exports = {

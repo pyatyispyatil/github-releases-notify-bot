@@ -3,3 +3,4 @@
 /build
 npm-debug.log*
 config.json
+app.logs
