@@ -1,16 +1,16 @@
 const Telegraf = require('telegraf');
 const {Extra, Markup, memorySession} = require('telegraf');
+const SocksProxyAgent = require('socks-proxy-agent');
 
 const keyboards = require('./keyboards');
-const config = require('./config.json');
-const {about, greeting} = require('./texts');
+const config = require('../config.json');
+const {about, greeting, stats} = require('./texts');
 const {getUser, parseRepo, getLastReleasesInRepos, getReleaseMessages} = require('./utils');
 const {getVersions} = require('./github-client');
-const SocksProxyAgent = require('socks-proxy-agent');
 
 
 const API_TOKEN = config.telegram.token || '';
-const PROXY_URI = config.telegram.proxy || '';
+const PROXY_OPTIONS = config.telegram.proxy || '';
 
 const PREVIEW_RELEASES_COUNT = -10;
 const FIRST_UPDATE_RELEASES_COUNT = 20;
@@ -20,8 +20,8 @@ const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60) * 100) / 100
 class Bot {
   constructor(db, logger) {
     this.bot = new Telegraf(API_TOKEN, {
-      telegram: PROXY_URI ? {
-        agent: new SocksProxyAgent(PROXY_URI)
+      telegram: PROXY_OPTIONS ? {
+        agent: new SocksProxyAgent(PROXY_OPTIONS)
       } : {},
       channelMode: false
     });
@@ -63,7 +63,8 @@ class Bot {
       [/^getReleases:one:(\d+?):release:(\d+?)$/, this.getReleasesOneRepoRelease],
       ['editRepos', this.editRepos],
       [/^editRepos:delete:(.+)$/, this.editReposDelete],
-      ['sendMessage', this.sendMessage]
+      ['sendMessage', this.sendMessage],
+      ['getStats', this.getStats]
     ];
 
     commands.forEach(([command, fn]) => this.bot.command(command, this.wrapAction(fn)));
@@ -119,13 +120,9 @@ class Bot {
   }
 
   admin(ctx) {
-    const user = getUser(ctx);
-
-    if (user.username === config.adminUserName) {
+    return this.checkAdminPrivileges(ctx, () => {
       return ctx.reply('Select an action', keyboards.adminActionsList());
-    } else {
-      return ctx.reply('You are not an administrator');
-    }
+    });
   }
 
   about(ctx) {
@@ -164,12 +161,12 @@ class Bot {
             return ctx.reply('Cannot subscribe to this repo. Please enter another:');
           }
         case 'sendMessage':
-          if (user.username === config.adminUserName) {
+          return this.checkAdminPrivileges(ctx, async () => {
             const users = await this.db.getAllUsers();
 
             await Promise.all(users.map(async ({userId, username, firstName, lastName}) => {
               try {
-                await this.bot.telegram.sendMessage(userId, str, Extra.markdown())
+                await this.bot.telegram.sendMessage(userId, ctx.match.input, Extra.markdown())
               } catch (err) {
                 this.logger.error(`Cannot send message to user: ${userId} | ${username} | ${firstName} | ${lastName}`);
               }
@@ -178,9 +175,7 @@ class Bot {
             ctx.session.action = null;
 
             return ctx.reply('Message sent');
-          } else {
-            return ctx.reply('You are not an administrator')
-          }
+          });
         default:
           ctx.session.action = null;
           return next();
@@ -360,11 +355,34 @@ class Bot {
   }
 
   sendMessage(ctx) {
-    ctx.session.action = 'sendMessage';
+    return this.checkAdminPrivileges(ctx, () => {
+      ctx.session.action = 'sendMessage';
 
-    ctx.answerCallbackQuery('');
+      ctx.answerCallbackQuery('');
 
-    return this.editMessageText(ctx, 'Please send me a message that will be sent to all users', keyboards.backToAdminActions());
+      return this.editMessageText(ctx, 'Please send me a message that will be sent to all users', keyboards.backToAdminActions());
+    });
+  }
+
+  async getStats(ctx) {
+    return this.checkAdminPrivileges(ctx, async () => {
+      const users = await this.db.getAllUsers();
+      const repos = await this.db.getAllReposNames();
+
+      const groupsCount = users.filter(({type}) => type === 'group').length;
+      const usersCount = users.filter(({type}) => type !== 'group').length;
+      const reposCount = repos.length;
+      const averageSubscriptionsPerUser = (users.reduce((acc, {subscriptions}) => acc + subscriptions.length, 0) / users.length).toFixed(2);
+      const averageWatchPerRepo = (repos.reduce((acc, {watchedUsers = []}) => acc + watchedUsers.length, 0) / repos.length).toFixed(2);
+
+      return ctx.replyWithMarkdown(stats({
+        groupsCount,
+        usersCount,
+        reposCount,
+        averageSubscriptionsPerUser,
+        averageWatchPerRepo
+      }));
+    });
   }
 
   getReleaseSender(ctx, repo, send) {
@@ -390,6 +408,16 @@ class Bot {
       return this.editMessageText(ctx, 'Data is broken');
     } catch (error) {
       return ctx.reply('Data is broken');
+    }
+  }
+
+  async checkAdminPrivileges(ctx, cb) {
+    const user = getUser(ctx);
+
+    if (user.username === config.adminUserName) {
+      return await cb();
+    } else {
+      return ctx.reply('You are not an administrator')
     }
   }
 

@@ -1,5 +1,5 @@
 const graphql = require('graphql-client');
-const config = require('./config.json');
+const config = require('../config.json');
 
 const client = graphql({
   url: config.github.url,
@@ -62,8 +62,11 @@ const getTags = (owner, name, count = 1) => client.query(`
     }`)
   .then(prepareTags);
 
-const getVersions = (owner, name, count) => getReleases(owner, name, count)
-  .then((releases) => releases.length ? releases : getTags(owner, name, count));
+const getVersions = async (owner, name, count) => {
+  const [releases, tags] = await Promise.all([getReleases(owner, name, count), getTags(owner, name, count)]);
+
+  return {releases, tags}
+};
 
 const getMany = (query, repos, count) => {
   if (repos.length) {
@@ -82,27 +85,27 @@ const getMany = (query, repos, count) => {
   }
 };
 
-const parseMany = (parser) => (data = []) => {
+const parseMany = (parser, toField) => (data = []) => {
   return data.map(({owner, name, rawReleases}) => {
     return {
       owner,
       name,
-      releases: parser(rawReleases)
+      [toField]: parser(rawReleases)
     };
   })
 };
 
 const getManyReleases = (repos, count) => getMany(releases, repos, count)
-  .then(parseMany(prepareReleases));
+  .then(parseMany(prepareReleases, 'releases'));
 
 const getManyTags = (repos, count) => getMany(tags, repos, count)
-  .then(parseMany(prepareTags));
+  .then(parseMany(prepareTags, 'tags'));
 
 const getManyVersions = async (repos, count) => {
   const releases = await getManyReleases(repos, count);
   const releasesUpdates = releases.filter(({releases}) => releases.length);
   const tags = await getManyTags(repos, count);
-  const tagsUpdates = tags.filter(({releases}) => releases.length);
+  const tagsUpdates = tags.filter(({tags}) => tags.length);
 
   return {releases: releasesUpdates, tags: tagsUpdates};
 };

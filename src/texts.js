@@ -17,6 +17,22 @@ In addition, you can see the latest releases of your observed repositories.
 To do this, click the "Get Releases" button.
 `;
 
+const stats = ({
+                 groupsCount,
+                 usersCount,
+                 reposCount,
+                 averageSubscriptionsPerUser,
+                 averageWatchPerRepo
+               }) => `
+Stats
+
+Groups count: ${groupsCount}
+Users count: ${usersCount}
+Repos count: ${reposCount}
+Average subscriptions per user: ${averageSubscriptionsPerUser}
+Average watch per repo: ${averageWatchPerRepo}
+`;
+
 module.exports = {
-  about, greeting
+  about, greeting, stats
 };

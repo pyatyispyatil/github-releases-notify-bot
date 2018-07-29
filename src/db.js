@@ -124,6 +124,10 @@ class DB {
     return await this.repos.find().toArray();
   }
 
+  async getAllReposNames() {
+    return await this.repos.find({}, {name: 1, owner: 1, watchedUsers: 1, _id: 0}).toArray();
+  }
+
   async updateRepo(owner, name, {releases: newReleases, tags: newTags}) {
     const {releases, tags} = await this.repos.findOne({owner, name});
 
@@ -211,7 +215,8 @@ class DB {
       ].map(({filter, update}) => this.repos.updateOne(filter, update))
     ]);
 
-    return [...newReleasesUpdates, ...changedUpdates];
+    return [...newReleasesUpdates, ...newTagsUpdates, ...changedUpdates]
+      .map((entry) => entry.tags ?  Object.assign({releases: entry.tags}, entry) : entry);
   }
 
   async bindUserToRepo(userId, owner, name) {
@@ -262,13 +267,13 @@ class DB {
           owner: updatedRepo.owner,
           name: updatedRepo.name,
           [type]: releasesFilter(similarRepo[type], updatedRepo[type]),
-          watchedUsers: similarRepo.watchedUsers
+          watchedUsers: similarRepo.watchedUsers || []
         }
       })
       .filter((update) => update[type].length)
   }
 
-  findNewReleases(oldReleases, newReleases) {
+  findNewReleases(oldReleases = [], newReleases = []) {
     return newReleases.filter((newRelease) => (
       newRelease && !oldReleases.some((oldRelease) =>
         oldRelease && (oldRelease.name === newRelease.name)
@@ -276,7 +281,7 @@ class DB {
     ));
   }
 
-  findChangedReleases(oldReleases, newReleases) {
+  findChangedReleases(oldReleases = [], newReleases = []) {
     return newReleases.filter((newRelease) => (
       newRelease && oldReleases.some((oldRelease) => (
         oldRelease && (

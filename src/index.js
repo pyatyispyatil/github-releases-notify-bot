@@ -1,6 +1,6 @@
 const cluster = require('cluster');
 
-const config = require('./config.json');
+const config = require('../config.json');
 
 const {Logger} = require('./logger');
 const {DB} = require('./db');
@@ -39,8 +39,7 @@ const run = async () => {
 
   const updateReleases = async () => {
     try {
-      const repos = await db.getAllRepos();
-
+      const repos = await db.getAllReposNames();
       const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
 
       return await db.updateRepos(updates);
