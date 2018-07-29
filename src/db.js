@@ -215,8 +215,31 @@ class DB {
       ].map(({filter, update}) => this.repos.updateOne(filter, update))
     ]);
 
-    return [...newReleasesUpdates, ...newTagsUpdates, ...changedUpdates]
-      .map((entry) => entry.tags ?  Object.assign({releases: entry.tags}, entry) : entry);
+    const onlyTagsUpdates = newTagsUpdates
+      .filter(({owner, name}) => !newReleasesUpdates
+        .some((release) => release.owner === owner && release.name === name));
+
+    const newReleasesWithTags = newReleasesUpdates
+      .map((repoWithRelease) => {
+        const similarRepoWithTags = newTagsUpdates
+          .find(({owner, name}) => repoWithRelease.owner === owner && repoWithRelease.name === name);
+
+        if (similarRepoWithTags) {
+          return Object.assign({}, repoWithRelease, {
+            releases: [
+              ...repoWithRelease.releases,
+              ...similarRepoWithTags.tags
+                .filter(({name}) => !repoWithRelease.releases
+                  .some((release) => release.name === name))
+            ]
+          });
+        } else {
+          return repoWithRelease;
+        }
+      });
+
+    return [...newReleasesWithTags, ...onlyTagsUpdates, ...changedUpdates]
+      .map((entry) => entry.tags ? Object.assign({releases: entry.tags}, entry) : entry);
   }
 
   async bindUserToRepo(userId, owner, name) {
