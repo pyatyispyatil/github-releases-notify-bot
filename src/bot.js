@@ -369,18 +369,23 @@ class Bot {
       const users = await this.db.getAllUsers();
       const repos = await this.db.getAllReposNames();
 
-      const groups = users.filter(({type}) => type === 'group');
+      const groups = users.filter(({type}) => type !== 'private');
       const groupsCount = groups.length;
-      const chatsMembersCount = await Promise.all(
+      const chatsMembersCounts = await Promise.all(
         groups
           .map(({userId}) => this.bot.telegram.getChatMembersCount(userId))
           .map((promise) => promise.catch(() => null))
       );
-      const usersInGroups = chatsMembersCount
+      const usersInGroups = chatsMembersCounts
         .filter(Boolean)
         .reduce((acc, count) => acc + count);
+      const chatsInfo = (await Promise.all(
+        groups
+          .map(({userId}) => this.bot.telegram.getChat(userId))
+      ))
+        .map((info, index) => Object.assign(info, {members: chatsMembersCounts[index]}));
 
-      const usersCount = users.filter(({type}) => type !== 'group').length;
+      const usersCount = users.filter(({type}) => type === 'private').length;
       const reposCount = repos.length;
       const averageSubscriptionsPerUser = (users.reduce((acc, {subscriptions}) => acc + subscriptions.length, 0) / users.length).toFixed(2);
       const averageWatchPerRepo = (repos.reduce((acc, {watchedUsers = []}) => acc + watchedUsers.length, 0) / repos.length).toFixed(2);
@@ -391,7 +396,8 @@ class Bot {
         reposCount,
         averageSubscriptionsPerUser,
         averageWatchPerRepo,
-        usersInGroups
+        usersInGroups,
+        chatsInfo
       }));
     });
   }

@@ -23,7 +23,8 @@ const stats = ({
                  reposCount,
                  averageSubscriptionsPerUser,
                  averageWatchPerRepo,
-                 usersInGroups
+                 usersInGroups,
+                 chatsInfo
                }) => `
 Stats
 
@@ -33,6 +34,11 @@ Users in groups count: ${usersInGroups}
 Repos count: ${reposCount}
 Average subscriptions per user: ${averageSubscriptionsPerUser}
 Average watch per repo: ${averageWatchPerRepo}
+
+chats: 
+${
+  chatsInfo.map(({title, members}) => `${title} - ${members}\n`)
+}
 `;
 
 module.exports = {
