@@ -374,9 +374,10 @@ class Bot {
       const chatsMembersCount = await Promise.all(
         groups
           .map(({userId}) => this.bot.telegram.getChatMembersCount(userId))
+          .map((promise) => promise.catch(() => null))
       );
       const usersInGroups = chatsMembersCount
-        .filter(Number.isInteger)
+        .filter(Boolean)
         .reduce((acc, count) => acc + count);
 
       const usersCount = users.filter(({type}) => type !== 'group').length;
