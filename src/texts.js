@@ -22,12 +22,14 @@ const stats = ({
                  usersCount,
                  reposCount,
                  averageSubscriptionsPerUser,
-                 averageWatchPerRepo
+                 averageWatchPerRepo,
+                 usersInGroups
                }) => `
 Stats
 
 Groups count: ${groupsCount}
 Users count: ${usersCount}
+Users in groups count: ${usersInGroups}
 Repos count: ${reposCount}
 Average subscriptions per user: ${averageSubscriptionsPerUser}
 Average watch per repo: ${averageWatchPerRepo}

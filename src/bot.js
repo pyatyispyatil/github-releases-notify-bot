@@ -369,7 +369,16 @@ class Bot {
       const users = await this.db.getAllUsers();
       const repos = await this.db.getAllReposNames();
 
-      const groupsCount = users.filter(({type}) => type === 'group').length;
+      const groups = users.filter(({type}) => type === 'group');
+      const groupsCount = groups.length;
+      const chatsMembersCount = await Promise.all(
+        groups
+          .map(({userId}) => this.bot.telegram.getChatMembersCount(userId))
+      );
+      const usersInGroups = chatsMembersCount
+        .filter(Number.isInteger)
+        .reduce((acc, count) => acc + count);
+
       const usersCount = users.filter(({type}) => type !== 'group').length;
       const reposCount = repos.length;
       const averageSubscriptionsPerUser = (users.reduce((acc, {subscriptions}) => acc + subscriptions.length, 0) / users.length).toFixed(2);
@@ -380,7 +389,8 @@ class Bot {
         usersCount,
         reposCount,
         averageSubscriptionsPerUser,
-        averageWatchPerRepo
+        averageWatchPerRepo,
+        usersInGroups
       }));
     });
   }
@@ -415,7 +425,7 @@ class Bot {
     const user = getUser(ctx);
 
     if (user.username === config.adminUserName) {
-      return await cb();
+      return cb();
     } else {
       return ctx.reply('You are not an administrator')
     }
