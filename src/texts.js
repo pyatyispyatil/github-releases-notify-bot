@@ -35,7 +35,7 @@ Repos count: ${reposCount}
 Average subscriptions per user: ${averageSubscriptionsPerUser}
 Average watch per repo: ${averageWatchPerRepo}
 
-chats: 
+Chats: 
 ${
   chatsInfo.map(({title, members}) => `${title} - ${members}\n`)
 }
