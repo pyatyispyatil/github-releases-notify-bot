@@ -369,7 +369,7 @@ class Bot {
       const users = await this.db.getAllUsers();
       const repos = await this.db.getAllReposNames();
 
-      const groups = users.filter(({type}) => type !== 'private');
+      const groups = users.filter(({type}) => type && type !== 'private');
       const groupsCount = groups.length;
       const chatsMembersCounts = await Promise.all(
         groups
@@ -385,7 +385,7 @@ class Bot {
       ))
         .map((info, index) => Object.assign(info, {members: chatsMembersCounts[index]}));
 
-      const usersCount = users.filter(({type}) => type === 'private').length;
+      const usersCount = users.filter(({type}) => !type || type === 'private').length;
       const reposCount = repos.length;
       const averageSubscriptionsPerUser = (users.reduce((acc, {subscriptions}) => acc + subscriptions.length, 0) / users.length).toFixed(2);
       const averageWatchPerRepo = (repos.reduce((acc, {watchedUsers = []}) => acc + watchedUsers.length, 0) / repos.length).toFixed(2);
