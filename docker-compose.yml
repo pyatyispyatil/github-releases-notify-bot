@@ -1,0 +1,14 @@
+version: '2'
+services:
+  mongo:
+    image: mongo
+    restart: always
+    volumes:
+      - ${PWD}/mongo:/data/db
+  notify-bot:
+    restart: always
+    build: .
+    volumes:
+      - ${PWD}/config.json:/config.json
+    depends_on:
+      - mongo
