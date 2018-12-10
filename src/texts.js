@@ -1,9 +1,9 @@
 const about = (interval) => `
 Bot to notify you about new releases in the repositories that you add to the subscription. New releases are checked every ${interval} minutes.
 
-*GitHub repository* - [gloooom/github-releases-notify-bot](https://github.com/gloooom/github-releases-notify-bot)
+*GitHub repository* - [pyatyispyatil/github-releases-notify-bot](https://github.com/pyatyispyatil/github-releases-notify-bot)
 
-Your wishes for features, as well as comments about bugs can be written [here](https://github.com/gloooom/github-releases-notify-bot/issues).
+Your wishes for features, as well as comments about bugs can be written [here](https://github.com/pyatyispyatil/github-releases-notify-bot/issues).
 `;
 
 const greeting = () => `
