@@ -371,18 +371,23 @@ class Bot {
 
       const groups = users.filter(({type}) => type && type !== 'private');
       const groupsCount = groups.length;
+
       const chatsMembersCounts = await Promise.all(
         groups
           .map(({userId}) => this.bot.telegram.getChatMembersCount(userId))
           .map((promise) => promise.catch(() => null))
       );
+
       const usersInGroups = chatsMembersCounts
         .filter(Boolean)
         .reduce((acc, count) => acc + count);
+
       const chatsInfo = (await Promise.all(
         groups
           .map(({userId}) => this.bot.telegram.getChat(userId))
+          .map((promise) => promise.catch(() => null))
       ))
+        .filter(Boolean)
         .map((info, index) => Object.assign(info, {members: chatsMembersCounts[index]}));
 
       const usersCount = users.filter(({type}) => !type || type === 'private').length;
