@@ -395,7 +395,7 @@ class Bot {
       const averageSubscriptionsPerUser = (users.reduce((acc, {subscriptions}) => acc + subscriptions.length, 0) / users.length).toFixed(2);
       const averageWatchPerRepo = (repos.reduce((acc, {watchedUsers = []}) => acc + watchedUsers.length, 0) / repos.length).toFixed(2);
 
-      return ctx.replyWithMarkdown(stats({
+      return ctx.reply(stats({
         groupsCount,
         usersCount,
         reposCount,
