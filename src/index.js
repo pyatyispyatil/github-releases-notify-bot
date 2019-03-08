@@ -42,6 +42,10 @@ const run = async () => {
       const repos = await db.getAllReposNames();
       const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
 
+      if (updates.tags.length || updates.releases.length) {
+        logger.log(`Repositories updated: new releases - ${updates.releases.length} | new tags - ${updates.tags.length}`);
+      }
+
       return await db.updateRepos(updates);
     } catch (error) {
       logger.error(`Exception while releases requesting: ${error.message}`);
