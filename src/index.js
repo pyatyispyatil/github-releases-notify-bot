@@ -44,7 +44,7 @@ const run = async () => {
 
       return await db.updateRepos(updates);
     } catch (error) {
-      logger.error(`uncaughtException: ${error.message}`);
+      logger.error(`Exception while releases requesting: ${error.message}`);
       logger.error(error.stack.toString());
 
       return [];

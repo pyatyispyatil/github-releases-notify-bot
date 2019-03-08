@@ -1,7 +1,38 @@
-const graphql = require('graphql-client');
 const config = require('../config.json');
+require('isomorphic-fetch');
 
-const client = graphql({
+const getClient = (params) => {
+  if (!params.url) throw new Error('Missing url parameter');
+
+  const headers = new Headers(params.headers);
+  headers.append('Content-Type', 'application/json');
+
+  return {
+    query: async (query, variables) => {
+      const req = new Request(params.url, {
+        method: 'POST',
+        body: JSON.stringify({
+          query: query,
+          variables: variables
+        }),
+        headers: headers,
+        credentials: params.credentials
+      });
+
+      const response = await fetch(req);
+      const body = response.json();
+
+      if (body.errors && body.errors.length) {
+        throw new Error(`Error while graphql request: ${JSON.stringify(body.errors, null, '  ')}`);
+      } else {
+        return body;
+      }
+    }
+  }
+};
+
+
+const client = getClient({
   url: config.github.url,
   headers: {
     Authorization: 'Bearer ' + config.github.token
