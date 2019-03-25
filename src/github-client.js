@@ -154,7 +154,7 @@ const getManyVersionsInBunches = async (repos, count) => {
   return resultedBunches.reduce((acc, {tags, releases}) => ({
     releases: acc.releases.concat(releases),
     tags: acc.tags.concat(tags)
-  }));
+  }), {releases: [], tags: []});
 };
 
 module.exports = {

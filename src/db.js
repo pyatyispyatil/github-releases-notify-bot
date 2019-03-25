@@ -131,8 +131,8 @@ class DB {
   async updateRepo(owner, name, {releases: newReleases, tags: newTags}) {
     const {releases, tags} = await this.repos.findOne({owner, name});
 
-    const filteredReleases = this.findNewReleases(releases, newReleases);
-    const filteredTags = this.findNewReleases(tags, newTags);
+    const filteredReleases = this.filterNewReleases(releases, newReleases);
+    const filteredTags = this.filterNewReleases(tags, newTags);
 
     return await this.repos.updateOne({owner, name}, {
       $push: {
@@ -142,12 +142,7 @@ class DB {
     }, {upsert: true});
   }
 
-  async updateRepos({releases, tags}) {
-    const repos = await this.getAllRepos();
-
-    const newReleasesUpdates = this.modifyReleases(releases, repos, 'releases', this.findNewReleases);
-    const newTagsUpdates = this.modifyReleases(tags, repos, 'tags', this.findNewReleases);
-
+  async updateReposReleases(newReleasesUpdates, newTagsUpdates, changedUpdates) {
     const preparedNewReleases = [
       ...newReleasesUpdates
         .filter(Boolean)
@@ -176,8 +171,6 @@ class DB {
           }
         }))
     ];
-
-    const changedUpdates = this.modifyReleases(releases, repos, 'releases', this.findChangedReleases);
 
     const preparedChangedReleases = changedUpdates
       .filter(Boolean)
@@ -214,6 +207,16 @@ class DB {
         ...preparedChangedReleases
       ].map(({filter, update}) => this.repos.updateOne(filter, update))
     ]);
+  }
+
+  async updateRepos({releases, tags}) {
+    const oldRepos = await this.getAllRepos();
+
+    const newReleasesUpdates = this.modifyReleases(releases, oldRepos, 'releases', this.filterNewReleases);
+    const newTagsUpdates = this.modifyReleases(tags, oldRepos, 'tags', this.filterNewReleases);
+    const changedUpdates = this.modifyReleases(releases, oldRepos, 'releases', this.filterChangedReleases);
+
+    await this.updateReposReleases(newReleasesUpdates, newTagsUpdates, changedUpdates);
 
     const onlyTagsUpdates = newTagsUpdates
       .filter(({owner, name}) => !newReleasesUpdates
@@ -296,7 +299,7 @@ class DB {
       .filter((update) => update[type].length)
   }
 
-  findNewReleases(oldReleases = [], newReleases = []) {
+  filterNewReleases(oldReleases = [], newReleases = []) {
     return newReleases.filter((newRelease) => (
       newRelease && !oldReleases.some((oldRelease) =>
         oldRelease && (oldRelease.name === newRelease.name)
@@ -304,7 +307,7 @@ class DB {
     ));
   }
 
-  findChangedReleases(oldReleases = [], newReleases = []) {
+  filterChangedReleases(oldReleases = [], newReleases = []) {
     return newReleases.filter((newRelease) => (
       newRelease && oldReleases.some((oldRelease) => (
         oldRelease && (
