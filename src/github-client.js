@@ -1,6 +1,11 @@
 const config = require('../config.json');
 require('isomorphic-fetch');
 
+const makeQuery = (query) => `
+query {
+  ${query}
+}`;
+
 const getClient = (params) => {
   if (!params.url) throw new Error('Missing url parameter');
 
@@ -12,7 +17,7 @@ const getClient = (params) => {
       const req = new Request(params.url, {
         method: 'POST',
         body: JSON.stringify({
-          query: query,
+          query: makeQuery(query),
           variables: variables
         }),
         headers: headers,
@@ -80,17 +85,14 @@ repository(owner:"${owner}", name:"${name}") {
   }
 }`;
 
-const getReleases = (owner, name, count = 1) => client.query(`
-    query {
-      ${releases(owner, name, count)}
-    }
-  `)
+const getReleases = (owner, name, count = 1) => client.query(
+  releases(owner, name, count)
+)
   .then(prepareReleases);
 
-const getTags = (owner, name, count = 1) => client.query(`
-    query {
-      ${tags(owner, name, count)}
-    }`)
+const getTags = (owner, name, count = 1) => client.query(
+  tags(owner, name, count)
+)
   .then(prepareTags);
 
 const getVersions = async (owner, name, count) => {
@@ -101,10 +103,9 @@ const getVersions = async (owner, name, count) => {
 
 const getMany = (query, repos, count) => {
   if (repos.length) {
-    return client.query(`
-      query {
-        ${repos.map((repo, index) => `repo_${index}: ${query(repo.owner, repo.name, count)}`).join('\n')}
-      }`)
+    return client.query(
+      repos.map((repo, index) => `repo_${index}: ${query(repo.owner, repo.name, count)}`).join('\n')
+    )
       .then(({data}) =>
         data ? repos.map((repo, index) => Object.assign(
           {rawReleases: data['repo_' + index]},
@@ -141,7 +142,23 @@ const getManyVersions = async (repos, count) => {
   return {releases: releasesUpdates, tags: tagsUpdates};
 };
 
+const BUNCH_SIZE = 50;
+const getManyVersionsInBunches = async (repos, count) => {
+  const bunchesCount = Math.ceil(repos.length / BUNCH_SIZE);
+
+  const resultedBunches = await Promise.all(Array(bunchesCount)
+    .fill(null)
+    .map((s, index) => getManyVersions(repos.slice(index * BUNCH_SIZE, index * BUNCH_SIZE + BUNCH_SIZE), count))
+  );
+
+  return resultedBunches.reduce((acc, {tags, releases}) => ({
+    releases: acc.releases.concat(releases),
+    tags: acc.tags.concat(tags)
+  }));
+};
+
 module.exports = {
   getVersions,
-  getManyVersions
+  getManyVersions,
+  getManyVersionsInBunches
 };

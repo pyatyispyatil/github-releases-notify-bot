@@ -6,7 +6,7 @@ const {Logger} = require('./logger');
 const {DB} = require('./db');
 const {Bot} = require('./bot');
 const {TaskManager} = require('./task-manager');
-const {getManyVersions} = require('./github-client');
+const {getManyVersionsInBunches} = require('./github-client');
 
 
 const logger = new Logger(config.app.logs);
@@ -40,7 +40,7 @@ const run = async () => {
   const updateReleases = async () => {
     try {
       const repos = await db.getAllReposNames();
-      const updates = await getManyVersions(repos.map(({owner, name}) => ({owner, name})), 1);
+      const updates = await getManyVersionsInBunches(repos.map(({owner, name}) => ({owner, name})), 1);
 
       if (updates.tags.length || updates.releases.length) {
         logger.log(`Repositories updated: new releases - ${updates.releases.length} | new tags - ${updates.tags.length}`);
