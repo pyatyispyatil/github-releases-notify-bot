@@ -12,7 +12,11 @@ class DB {
 
   async init() {
     try {
-      const db = await new Promise((resolve) => MongoClient.connect(this.url + this.name, (err, db) => {
+      const db = await new Promise((resolve) => MongoClient.connect(this.url + this.name, {
+        poolSize: 20,
+        socketTimeoutMS: 480000,
+        keepAlive: 300000
+      }, (err, db) => {
         assert.equal(null, err);
 
         console.log("Connected successfully to DB");
@@ -31,7 +35,7 @@ class DB {
 
       console.log('Indexes created');
     } catch (error) {
-      console.log('Something wrong with MongoDB =(');
+      console.log('Something wrong with MongoDB =(', error.stack.toString());
     }
   }
 
