@@ -39,6 +39,7 @@ const run = async () => {
 
   const updateReleases = async () => {
     try {
+      await db.clearReleases();
       const repos = await db.getAllReposNames();
       const updates = await getManyVersionsInBunches(repos.map(({owner, name}) => ({owner, name})), 1);
 

@@ -132,6 +132,21 @@ class DB {
     return await this.repos.find({}, {name: 1, owner: 1, watchedUsers: 1, _id: 0}).toArray();
   }
 
+  async clearReleases() {
+    return await Promise.all([
+      this.repos.update(
+        { "releases.5": { "$exists": 1 } },
+        { "$push": { "releases": { "$each": [], "$slice": -5 } } },
+        { "multi": true }
+      ),
+      this.repos.update(
+        { "tags.5": { "$exists": 1 } },
+        { "$push": { "tags": { "$each": [], "$slice": -5 } } },
+        { "multi": true }
+      )
+    ]);
+  }
+
   async updateRepo(owner, name, {releases: newReleases, tags: newTags}) {
     const {releases, tags} = await this.repos.findOne({owner, name});
 

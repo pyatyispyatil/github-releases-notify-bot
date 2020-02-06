@@ -13,7 +13,7 @@ const API_TOKEN = config.telegram.token || '';
 const PROXY_OPTIONS = config.telegram.proxy || '';
 
 const PREVIEW_RELEASES_COUNT = -10;
-const FIRST_UPDATE_RELEASES_COUNT = 20;
+const FIRST_UPDATE_RELEASES_COUNT = 5;
 const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60) * 100) / 100;
 
 
