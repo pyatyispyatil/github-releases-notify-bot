@@ -4,11 +4,9 @@ const SocksProxyAgent = require('socks-proxy-agent');
 
 const keyboards = require('./keyboards');
 const config = require('../config.json');
-const {createClient} = require("./github-client");
-const {canAccessRepo} = require("./github-client");
 const {about, greeting, stats} = require('./texts');
 const {getUser, parseRepo, getLastReleasesInRepos, getReleaseMessages} = require('./utils');
-const {getVersions} = require('./github-client');
+const {createClient, canAccessRepo, getVersions} = require('./github-client');
 
 
 const API_TOKEN = config.telegram.token || '';
@@ -188,7 +186,7 @@ class Bot {
                 const { token } = await this.db.getUser(user.id);
 
                 if (!token) {
-                  return ctx.reply('This repo seems private. Please set Github Personal token to access this repo', keyboards.backToActions());
+                  return ctx.reply('This repo seems private. Please set Github Personal token to access this repo and try again', keyboards.backToActions());
                 }
 
                 await this.addPrivateRepo(user, repo);
