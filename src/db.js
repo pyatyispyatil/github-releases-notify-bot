@@ -140,8 +140,6 @@ class DB {
 
   async getPrivateRepo(userId, owner, name) {
     const user = await this.getUser(userId);
-    console.log(user);
-    // TODO handle privateRepos is not defined
     return (user.repos || []).find(repo => repo.owner === owner && repo.name === name);
   }
 
@@ -322,9 +320,6 @@ class DB {
   async updatePrivateRepos(userId, {releases, tags}) {
     const { repos = [] } = await this.getUser(userId);
     const {newReleasesUpdates, newTagsUpdates, changedUpdates, updates} = this.prepareUpdates(releases, tags, repos);
-
-    console.log('updatePrivateRepos', {userId, updates})
-    // await this.updateReposReleases(newReleasesUpdates, newTagsUpdates, changedUpdates);
 
     for (const update of newReleasesUpdates) {
       await this.users.updateOne({

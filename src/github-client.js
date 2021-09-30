@@ -102,20 +102,13 @@ const getReleases = (owner, name, count = 1, api = publicClient) => api.query(
 )
   .then(prepareReleases);
 
-const getTags = (owner, name, count = 1, api = publicClient) => api.query(
+const getTags = (owner, name, count = 1, client = publicClient) => client.query(
   tags(owner, name, count)
 )
   .then(prepareTags);
 
-const getVersions = async (owner, name, count) => {
-  const [releases, tags] = await Promise.all([getReleases(owner, name, count), getTags(owner, name, count)]);
-
-  return {releases, tags}
-};
-
-const getPrivateVersions = async (token, owner, name, count) => {
-  const privateClient = createClient(token);
-  const [releases, tags] = await Promise.all([getReleases(owner, name, count, privateClient), getTags(owner, name, count, privateClient)]);
+const getVersions = async (owner, name, count, client = publicClient) => {
+  const [releases, tags] = await Promise.all([getReleases(owner, name, count, client), getTags(owner, name, count, client)]);
 
   return {releases, tags}
 };
@@ -180,7 +173,6 @@ module.exports = {
   canAccessRepo,
   createClient,
   getVersions,
-  getPrivateVersions,
   getManyVersions,
   getManyVersionsInBunches
 };

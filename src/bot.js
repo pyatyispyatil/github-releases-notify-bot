@@ -4,10 +4,11 @@ const SocksProxyAgent = require('socks-proxy-agent');
 
 const keyboards = require('./keyboards');
 const config = require('../config.json');
+const {createClient} = require("./github-client");
 const {canAccessRepo} = require("./github-client");
 const {about, greeting, stats} = require('./texts');
 const {getUser, parseRepo, getLastReleasesInRepos, getReleaseMessages} = require('./utils');
-const {getVersions, getPrivateVersions} = require('./github-client');
+const {getVersions} = require('./github-client');
 
 
 const API_TOKEN = config.telegram.token || '';
@@ -159,7 +160,8 @@ class Bot {
     const hasRepo = await this.db.getPrivateRepo(user.id, repo.owner, repo.name);
 
     if (!hasRepo) {
-      const releases = await getPrivateVersions(token, repo.owner, repo.name, FIRST_UPDATE_RELEASES_COUNT);
+      const privateClient = createClient(token);
+      const releases = await getVersions(token, repo.owner, repo.name, FIRST_UPDATE_RELEASES_COUNT, privateClient);
 
       await this.db.addPrivateRepo(user.id, repo.owner, repo.name);
       await this.db.updatePrivateRepo(user.id, repo.owner, repo.name, releases);

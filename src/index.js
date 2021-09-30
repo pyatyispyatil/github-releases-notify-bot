@@ -72,7 +72,7 @@ const run = async () => {
         const updates = await getManyVersionsInBunches(repos.map(({owner, name}) => ({owner, name})), 1, privateClient);
 
         if (updates.tags.length || updates.releases.length) {
-          logger.log(`Repositories updated: new releases - ${updates.releases.length} | new tags - ${updates.tags.length}`);
+          logger.log(`Repositories updated for userId - "${userId}": new releases - ${updates.releases.length} | new tags - ${updates.tags.length}`);
         }
 
         allUpdates.push(
@@ -93,7 +93,7 @@ const run = async () => {
   tasks.add('releases', updateReleases, config.app.updateInterval || 60 * 5);
   tasks.subscribe('releases', bot.notifyUsers.bind(bot));
 
-  tasks.add('privateReleases', updatePrivateReleases, 10 || config.app.updateInterval || 60 * 5);
+  tasks.add('privateReleases', updatePrivateReleases, config.app.updateInterval || 60 * 5);
   tasks.subscribe('privateReleases', bot.notifyUsers.bind(bot));
 
   logger.log('Worker ready');
@@ -106,7 +106,7 @@ const forkWorker = (cluster) => {
   logger.log(`Worker ${worker.pid} started.`);
 };
 
-if (false) {
+if (cluster.isMaster) {
   logger.log(`Start cluster with ${workers} workers`);
 
   for (let i = workers; i--;) {
