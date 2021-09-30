@@ -36,13 +36,16 @@ const getClient = (params) => {
   }
 };
 
+function createClient(token) {
+  return getClient({
+    url: config.github.url,
+    headers: {
+      Authorization: 'Bearer ' + token
+    }
+  })
+}
 
-const client = getClient({
-  url: config.github.url,
-  headers: {
-    Authorization: 'Bearer ' + config.github.token
-  }
-});
+const publicClient = createClient(config.github.token);
 
 const prepareRelease = ({url, isPrerelease, description, tag}) => ({
   url,
@@ -52,6 +55,15 @@ const prepareRelease = ({url, isPrerelease, description, tag}) => ({
 });
 
 const prepareReleases = (res) => res ? ((res.data && res.data.repository) || res).releases.nodes.filter(Boolean).map(prepareRelease) : [];
+
+const canAccessRepo = async (owner, name, client = publicClient) => {
+  try {
+    await getReleases(owner, name, client);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 
 const prepareTag = (tag) => ({
   url: '',
@@ -85,12 +97,12 @@ repository(owner:"${owner}", name:"${name}") {
   }
 }`;
 
-const getReleases = (owner, name, count = 1) => client.query(
+const getReleases = (owner, name, count = 1, api = publicClient) => api.query(
   releases(owner, name, count)
 )
   .then(prepareReleases);
 
-const getTags = (owner, name, count = 1) => client.query(
+const getTags = (owner, name, count = 1, api = publicClient) => api.query(
   tags(owner, name, count)
 )
   .then(prepareTags);
@@ -101,7 +113,14 @@ const getVersions = async (owner, name, count) => {
   return {releases, tags}
 };
 
-const getMany = (query, repos, count) => {
+const getPrivateVersions = async (token, owner, name, count) => {
+  const privateClient = createClient(token);
+  const [releases, tags] = await Promise.all([getReleases(owner, name, count, privateClient), getTags(owner, name, count, privateClient)]);
+
+  return {releases, tags}
+};
+
+const getMany = (query, repos, count, client = publicClient) => {
   if (repos.length) {
     return client.query(
       repos.map((repo, index) => `repo_${index}: ${query(repo.owner, repo.name, count)}`).join('\n')
@@ -127,28 +146,28 @@ const parseMany = (parser, toField) => (data = []) => {
   })
 };
 
-const getManyReleases = (repos, count) => getMany(releases, repos, count)
+const getManyReleases = (repos, count, client = publicClient) => getMany(releases, repos, count, client)
   .then(parseMany(prepareReleases, 'releases'));
 
-const getManyTags = (repos, count) => getMany(tags, repos, count)
+const getManyTags = (repos, count, client = publicClient) => getMany(tags, repos, count, client)
   .then(parseMany(prepareTags, 'tags'));
 
-const getManyVersions = async (repos, count) => {
-  const releases = await getManyReleases(repos, count);
+const getManyVersions = async (repos, count, client = publicClient) => {
+  const releases = await getManyReleases(repos, count, client);
   const releasesUpdates = releases.filter(({releases}) => releases.length);
-  const tags = await getManyTags(repos, count);
+  const tags = await getManyTags(repos, count, client);
   const tagsUpdates = tags.filter(({tags}) => tags.length);
 
   return {releases: releasesUpdates, tags: tagsUpdates};
 };
 
 const BUNCH_SIZE = 50;
-const getManyVersionsInBunches = async (repos, count) => {
+const getManyVersionsInBunches = async (repos, count, client = publicClient) => {
   const bunchesCount = Math.ceil(repos.length / BUNCH_SIZE);
 
   const resultedBunches = await Promise.all(Array(bunchesCount)
     .fill(null)
-    .map((s, index) => getManyVersions(repos.slice(index * BUNCH_SIZE, index * BUNCH_SIZE + BUNCH_SIZE), count))
+    .map((s, index) => getManyVersions(repos.slice(index * BUNCH_SIZE, index * BUNCH_SIZE + BUNCH_SIZE), count, client))
   );
 
   return resultedBunches.reduce((acc, {tags, releases}) => ({
@@ -158,7 +177,10 @@ const getManyVersionsInBunches = async (repos, count) => {
 };
 
 module.exports = {
+  canAccessRepo,
+  createClient,
   getVersions,
+  getPrivateVersions,
   getManyVersions,
   getManyVersionsInBunches
 };

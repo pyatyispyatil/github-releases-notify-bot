@@ -4,9 +4,10 @@ const SocksProxyAgent = require('socks-proxy-agent');
 
 const keyboards = require('./keyboards');
 const config = require('../config.json');
+const {canAccessRepo} = require("./github-client");
 const {about, greeting, stats} = require('./texts');
 const {getUser, parseRepo, getLastReleasesInRepos, getReleaseMessages} = require('./utils');
-const {getVersions} = require('./github-client');
+const {getVersions, getPrivateVersions} = require('./github-client');
 
 
 const API_TOKEN = config.telegram.token || '';
@@ -17,6 +18,15 @@ const FIRST_UPDATE_RELEASES_COUNT = 5;
 const UPDATE_INTERVAL = Math.floor((config.app.updateInterval / 60) * 100) / 100;
 
 
+/**
+ * @typedef {import('./db')} DB
+ * */
+
+/**
+ *
+ * Class definition
+ * @property {DB} db - propriety description
+ */
 class Bot {
   constructor(db, logger) {
     this.bot = new Telegraf(API_TOKEN, {
@@ -55,6 +65,7 @@ class Bot {
       ['actionsList', this.actionsList],
       ['adminActionsList', this.adminActionsList],
       ['addRepo', this.addRepo],
+      ['setToken', this.setToken],
       ['getReleases', this.getReleases],
       [/^getReleases:expand:(.+)$/, this.getReleasesExpandRelease],
       ['getReleases:all', this.getReleasesAll],
@@ -129,6 +140,34 @@ class Bot {
     return ctx.replyWithMarkdown(about(UPDATE_INTERVAL));
   }
 
+  // TODO move to db
+  async addPublicRepo(user, repo) {
+    const hasRepoInDB = await this.db.getRepo(repo.owner, repo.name);
+
+    if (!hasRepoInDB) {
+      const releases = await getVersions(repo.owner, repo.name, FIRST_UPDATE_RELEASES_COUNT);
+
+      await this.db.addRepo(repo.owner, repo.name);
+      await this.db.updateRepo(repo.owner, repo.name, releases);
+    }
+
+    await this.db.bindUserToRepo(user.id, repo.owner, repo.name);
+  }
+
+  async addPrivateRepo(user, repo) {
+    const { token } = await this.db.users.findOne({ userId: user.id });
+    const hasRepo = await this.db.getPrivateRepo(user.id, repo.owner, repo.name);
+
+    if (!hasRepo) {
+      const releases = await getPrivateVersions(token, repo.owner, repo.name, FIRST_UPDATE_RELEASES_COUNT);
+
+      await this.db.addPrivateRepo(user.id, repo.owner, repo.name);
+      await this.db.updatePrivateRepo(user.id, repo.owner, repo.name, releases);
+    }
+
+    await this.db.bindUserToPrivateRepo(user.id, repo.owner, repo.name);
+  }
+
   async handleAnswer(ctx, next) {
     const str = ctx.match[0];
     const user = getUser(ctx);
@@ -137,29 +176,38 @@ class Bot {
       switch (ctx.session.action) {
         case 'addRepo':
           const repo = parseRepo(str);
-
           if (repo) {
-            const hasRepoInDB = await this.db.getRepo(repo.owner, repo.name);
+            try {
+              const isPublicRepo = await canAccessRepo(repo.owner, repo.name);
 
-            if (!hasRepoInDB) {
-              try {
-                const releases = await getVersions(repo.owner, repo.name, FIRST_UPDATE_RELEASES_COUNT);
+              if (isPublicRepo) {
+                await this.addPublicRepo(user, repo);
+              } else {
+                const { token } = await this.db.getUser(user.id);
 
-                await this.db.addRepo(repo.owner, repo.name);
-                await this.db.updateRepo(repo.owner, repo.name, releases);
-              } catch (error) {
-                return ctx.reply('Cannot subscribe to this repo. Please enter another:');
+                if (!token) {
+                  return ctx.reply('This repo seems private. Please set Github Personal token to access this repo', keyboards.backToActions());
+                }
+
+                await this.addPrivateRepo(user, repo);
               }
+              ctx.session.action = null;
+
+              return ctx.reply('Done! Add one more?', keyboards.addOneMoreRepo());
+            } catch (error) {
+              console.error('addRepo', error);
+              return ctx.reply('Cannot subscribe to this repo. Please enter another:');
             }
-
-            await this.db.bindUserToRepo(user.id, repo.owner, repo.name);
-
-            ctx.session.action = null;
-
-            return ctx.reply('Done! Add one more?', keyboards.addOneMoreRepo());
           } else {
-            return ctx.reply('Cannot subscribe to this repo. Please enter another:');
+            return ctx.reply('Invalid repo. Please enter another:');
           }
+        case 'setToken': {
+          // TODO move to db
+          await this.db.users.update({ userId: user.id }, {
+            $set: {token: str}
+          });
+          return ctx.reply('GitHub Personal token is set');
+        }
         case 'sendMessage':
           return this.checkAdminPrivileges(ctx, async () => {
             const users = await this.db.getAllUsers();
@@ -189,6 +237,14 @@ class Bot {
     ctx.answerCallbackQuery('');
 
     return this.editMessageText(ctx, 'Please, send me the owner and name of repo (owner/name) or full url', keyboards.backToActions());
+  }
+
+  setToken(ctx) {
+    ctx.session.action = 'setToken';
+
+    ctx.answerCallbackQuery('');
+
+    return this.editMessageText(ctx, 'Please, send me GitHub Personal token', keyboards.backToActions());
   }
 
   async editRepos(ctx) {

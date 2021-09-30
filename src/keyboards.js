@@ -4,7 +4,8 @@ module.exports = {
   actionsList: () => Markup.inlineKeyboard([
     Markup.callbackButton('Add repository', 'addRepo'),
     Markup.callbackButton('Subscriptions', 'editRepos'),
-    Markup.callbackButton('Get releases', 'getReleases')
+    Markup.callbackButton('Get releases', 'getReleases'),
+    Markup.callbackButton('Set token', 'setToken')
   ]).extra(),
   adminActionsList: () => Markup.inlineKeyboard([
     Markup.callbackButton('Send message', 'sendMessage'),
