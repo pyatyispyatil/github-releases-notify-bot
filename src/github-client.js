@@ -97,7 +97,7 @@ repository(owner:"${owner}", name:"${name}") {
   }
 }`;
 
-const getReleases = (owner, name, count = 1, api = publicClient) => api.query(
+const getReleases = (owner, name, count = 1, client = publicClient) => client.query(
   releases(owner, name, count)
 )
   .then(prepareReleases);

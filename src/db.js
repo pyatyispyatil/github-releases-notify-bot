@@ -364,7 +364,6 @@ class DB {
         "repos.name": update.name,
       });
       const repo = repos.find(x => x.owner === update.owner && x.name === update.name);
-      console.log('updatedChange', repo.releases.map(x => x.name === update.release.name ? update.release : x))
       await this.users.updateOne({
         userId,
         "repos.owner": update.owner,
