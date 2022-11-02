@@ -1,7 +1,7 @@
 version: '2'
 services:
   mongo:
-    image: mongo
+    image: mongo:4
     restart: always
     volumes:
       - ${PWD}/mongo:/data/db
