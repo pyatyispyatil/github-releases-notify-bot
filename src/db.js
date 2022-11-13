@@ -68,7 +68,9 @@ class DB {
         subscriptions: [],
         type: user.type,
         username: user.username,
+        token: null,
         date: (new Date()).toISOString(),
+        repos: [],
       }, user.type === "private" ? {
         isBot: user.is_bot,
         firstName: user.first_name,
@@ -101,6 +103,22 @@ class DB {
     }
   }
 
+  async addPrivateRepo(userId, owner, name) {
+    await this.users.update({ userId}, {
+      $push: {
+        repos: {
+          owner,
+          name,
+          watchedUsers: [],
+          releases: [],
+          tags: []
+        }
+      }
+    });
+
+    return 'new';
+  }
+
   async removeRepo(owner, name) {
     return await this.repos.deleteOne({
       owner,
@@ -118,6 +136,11 @@ class DB {
 
   async getAllUsers() {
     return await this.users.find().toArray();
+  }
+
+  async getPrivateRepo(userId, owner, name) {
+    const user = await this.getUser(userId);
+    return (user.repos || []).find(repo => repo.owner === owner && repo.name === name);
   }
 
   async getRepo(owner, name) {
@@ -157,6 +180,24 @@ class DB {
       $push: {
         releases: {$each: filteredReleases},
         tags: {$each: filteredTags}
+      }
+    }, {upsert: true});
+  }
+
+  async updatePrivateRepo(userId, owner, name, {releases: newReleases, tags: newTags}) {
+    const {releases, tags} = await this.getPrivateRepo(userId, owner, name);
+
+    const filteredReleases = this.filterNewReleases(releases, newReleases);
+    const filteredTags = this.filterNewReleases(tags, newTags);
+
+    return await this.users.update({
+      userId,
+      "repos.owner": owner,
+      "repos.name": name,
+    }, {
+      $push: {
+        ["repos.$.releases"]: { $each: filteredReleases },
+        ["repos.$.tags"]: { $each: filteredTags },
       }
     }, {upsert: true});
   }
@@ -228,40 +269,114 @@ class DB {
     ]);
   }
 
+  prepareUpdates(releases, tags, repos) {
+    const newReleasesUpdates = this.modifyReleases(releases, repos, 'releases', this.filterNewReleases);
+    const newTagsUpdates = this.modifyReleases(tags, repos, 'tags', this.filterNewReleases);
+    const changedUpdates = this.modifyReleases(releases, repos, 'releases', this.filterChangedReleases);
+
+    const onlyTagsUpdates = newTagsUpdates
+        .filter(({owner, name}) => !newReleasesUpdates
+            .some((release) => release.owner === owner && release.name === name));
+
+    const newReleasesWithTags = newReleasesUpdates
+        .map((repoWithRelease) => {
+          const similarRepoWithTags = newTagsUpdates
+              .find(({owner, name}) => repoWithRelease.owner === owner && repoWithRelease.name === name);
+
+          if (similarRepoWithTags) {
+            return Object.assign({}, repoWithRelease, {
+              releases: [
+                ...repoWithRelease.releases,
+                ...similarRepoWithTags.tags
+                    .filter(({name}) => !repoWithRelease.releases
+                        .some((release) => release.name === name))
+              ]
+            });
+          } else {
+            return repoWithRelease;
+          }
+        });
+
+    const updates = [...newReleasesWithTags, ...onlyTagsUpdates, ...changedUpdates]
+        .map((entry) => entry.tags ? Object.assign({releases: entry.tags}, entry) : entry);
+
+    return {
+      updates,
+      newTagsUpdates,
+      changedUpdates,
+      newReleasesUpdates,
+    }
+  }
+
   async updateRepos({releases, tags}) {
     const oldRepos = await this.getAllRepos();
-
-    const newReleasesUpdates = this.modifyReleases(releases, oldRepos, 'releases', this.filterNewReleases);
-    const newTagsUpdates = this.modifyReleases(tags, oldRepos, 'tags', this.filterNewReleases);
-    const changedUpdates = this.modifyReleases(releases, oldRepos, 'releases', this.filterChangedReleases);
+    const {newReleasesUpdates, newTagsUpdates, changedUpdates, updates} = this.prepareUpdates(releases, tags, oldRepos);
 
     await this.updateReposReleases(newReleasesUpdates, newTagsUpdates, changedUpdates);
 
-    const onlyTagsUpdates = newTagsUpdates
-      .filter(({owner, name}) => !newReleasesUpdates
-        .some((release) => release.owner === owner && release.name === name));
+    return updates;
+  }
 
-    const newReleasesWithTags = newReleasesUpdates
-      .map((repoWithRelease) => {
-        const similarRepoWithTags = newTagsUpdates
-          .find(({owner, name}) => repoWithRelease.owner === owner && repoWithRelease.name === name);
+  async updatePrivateRepos(userId, {releases, tags}) {
+    const { repos = [] } = await this.getUser(userId);
+    const {newReleasesUpdates, newTagsUpdates, changedUpdates, updates} = this.prepareUpdates(releases, tags, repos);
 
-        if (similarRepoWithTags) {
-          return Object.assign({}, repoWithRelease, {
-            releases: [
-              ...repoWithRelease.releases,
-              ...similarRepoWithTags.tags
-                .filter(({name}) => !repoWithRelease.releases
-                  .some((release) => release.name === name))
-            ]
-          });
-        } else {
-          return repoWithRelease;
+    for (const update of newReleasesUpdates) {
+      await this.users.updateOne({
+        userId,
+        "repos.owner": update.owner,
+        "repos.name": update.name,
+      }, {
+        $push: {
+          "repos.$.releases": {$each: update.releases}
         }
       });
+    }
 
-    return [...newReleasesWithTags, ...onlyTagsUpdates, ...changedUpdates]
-      .map((entry) => entry.tags ? Object.assign({releases: entry.tags}, entry) : entry);
+    for (const update of newTagsUpdates) {
+      await this.users.updateOne({
+        userId,
+        "repos.owner": update.owner,
+        "repos.name": update.name,
+      }, {
+        $push: {
+          "repos.$.tags": {$each: update.tags}
+        }
+      });
+    }
+
+  const preparedChangedReleases = changedUpdates
+      .filter(Boolean)
+      .reduce((acc, {owner, name, releases}) => acc.concat(
+          releases.map((release) => ({
+                owner,
+                name,
+                release
+              })
+          )
+      ), [])
+      .filter(Boolean)
+
+    for (const update of preparedChangedReleases) {
+      const {repos} = await this.users.findOne({
+        userId,
+        "repos.owner": update.owner,
+        "repos.name": update.name,
+      });
+      const repo = repos.find(x => x.owner === update.owner && x.name === update.name);
+      await this.users.updateOne({
+        userId,
+        "repos.owner": update.owner,
+        "repos.name": update.name,
+      }, {
+        $set: {
+          "repos.$.releases":  repo.releases.map(x => x.name === update.release.name ? update.release : x),
+        }
+      })
+    }
+
+
+    return updates;
   }
 
   async bindUserToRepo(userId, owner, name) {
@@ -283,6 +398,27 @@ class DB {
     return status;
   }
 
+  async bindUserToPrivateRepo(userId, owner, name) {
+    const status = await this.addRepo(owner, name);
+
+    await Promise.all([
+      this.users.updateOne({userId, "repos.name": name, "repos.owner": owner }, {
+        $addToSet: {
+          "repos.$.watchedUsers": userId
+        }
+      }, {upsert: true}),
+      this.users.updateOne({userId}, {
+        $addToSet: {
+          subscriptions: {owner, name},
+          watchedUsers: userId
+        }
+      }, {upsert: true})
+    ]);
+
+    return status;
+  }
+
+
   async unbindUserFromRepo(userId, owner, name) {
     return await Promise.all([
       this.repos.updateOne({owner, name}, {
@@ -293,6 +429,11 @@ class DB {
       this.users.updateOne({userId}, {
         $pull: {
           subscriptions: {owner, name}
+        }
+      }, {upsert: true}),
+      this.users.updateOne({userId, "repos.owner": owner, "repos.name": name}, {
+        $pull: {
+          "repos.$.watchedUsers": userId
         }
       }, {upsert: true})
     ]);

@@ -1,6 +1,7 @@
 const cluster = require('cluster');
 
 const config = require('../config.json');
+const {createClient} = require("./github-client");
 
 const {Logger} = require('./logger');
 const {DB} = require('./db');
@@ -56,8 +57,44 @@ const run = async () => {
     }
   };
 
+  const updatePrivateReleases = async () => {
+    try {
+      const allUpdates = [];
+      const users = await db.getAllUsers();
+
+      for (const user of users) {
+        const { userId, repos, token } = user;
+
+        if (!token || !repos.length) {
+          continue;
+        }
+        const privateClient = createClient(token);
+        const updates = await getManyVersionsInBunches(repos.map(({owner, name}) => ({owner, name})), 1, privateClient);
+
+        if (updates.tags.length || updates.releases.length) {
+          logger.log(`Repositories updated for userId - "${userId}": new releases - ${updates.releases.length} | new tags - ${updates.tags.length}`);
+        }
+
+        allUpdates.push(
+          ...(await db.updatePrivateRepos(userId, updates))
+        );
+      }
+
+      return allUpdates;
+    } catch (error) {
+      logger.error(`Exception while releases requesting: ${error.message}`);
+      logger.error(error.stack.toString());
+
+      return [];
+    }
+  };
+
+
   tasks.add('releases', updateReleases, config.app.updateInterval || 60 * 5);
   tasks.subscribe('releases', bot.notifyUsers.bind(bot));
+
+  tasks.add('privateReleases', updatePrivateReleases, config.app.updateInterval || 60 * 5);
+  tasks.subscribe('privateReleases', bot.notifyUsers.bind(bot));
 
   logger.log('Worker ready');
 };
