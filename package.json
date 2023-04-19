@@ -10,7 +10,7 @@
   "author": "Nikolay Ryabov",
   "license": "MIT",
   "dependencies": {
-    "isomorphic-fetch": "^2.2.1",
+    "isomorphic-fetch": "^3.0.0",
     "mongodb": "^2.2.31",
     "socks-proxy-agent": "^4.0.1",
     "telegraf": "^3.10.1"
